@@ -21,17 +21,25 @@
 #ifndef TERMINALDISPLAY_H
 #define TERMINALDISPLAY_H
 
-// Qt
 #include <QColor>
 #include <QPointer>
 #include <QWidget>
+#include <QClipboard>
+#include <QMovie>
+#include <QMediaPlayer>
+#include <QVideoSink>
+#include <QVideoFrame>
+#include <QPlainTextEdit>
+#include <QDialog>
+#include <QDialogButtonBox>
+#include <QVBoxLayout>
+#include <QLabel>
+#include <QPushButton>
 
-// Konsole
 #include "Filter.h"
 #include "Character.h"
+#include "CharWidth.h"
 #include "qtermwidget.h"
-//#include "konsole_export.h"
-#define KONSOLEPRIVATE_EXPORT
 
 class QDrag;
 class QDragEnterEvent;
@@ -67,7 +75,8 @@ namespace Konsole
         Stretch,
         Zoom,
         Fit,
-        Center
+        Center,
+        Tile
     };
 
 extern unsigned short vt100_graphics[32];
@@ -83,7 +92,7 @@ class ScreenWindow;
  *
  * TODO More documentation
  */
-class KONSOLEPRIVATE_EXPORT TerminalDisplay : public QWidget
+class TerminalDisplay : public QWidget
 {
    Q_OBJECT
 
@@ -111,7 +120,11 @@ public:
     void setOpacity(qreal opacity);
 
     /** Sets the background image of the terminal display. */
+    void setBackgroundPixmap(QPixmap *backgroundImage);
+    void reloadBackgroundPixmap(void);
     void setBackgroundImage(const QString& backgroundImage);
+    void setBackgroundMovie(const QString& backgroundImage);
+    void setBackgroundVideo(const QString& backgroundImage);
 
     /** Sets the background image mode of the terminal display. */
     void setBackgroundMode(BackgroundMode mode);
@@ -433,6 +446,11 @@ public:
     void disableBracketedPasteMode(bool disable) { _disabledBracketedPasteMode = disable; }
     bool bracketedPasteModeIsDisabled() const { return _disabledBracketedPasteMode; }
 
+    void setShowResizeNotificationEnabled(bool enabled) { _showResizeNotificationEnabled = enabled; }
+
+    void setPreeditColorIndex(int index) {
+        _preeditColorIndex = index;
+    }
 public slots:
 
     /**
@@ -452,7 +470,7 @@ public slots:
     void updateLineProperties();
 
     /** Copies the selected text to the clipboard. */
-    void copyClipboard();
+    void copyClipboard(QClipboard::Mode mode = QClipboard::Clipboard);
     /**
      * Pastes the content of the clipboard into the
      * display.
@@ -463,6 +481,11 @@ public slots:
      * display.
      */
     void pasteSelection();
+
+    /**
+     * Selects all of the text in the display.
+     */
+    void selectAll();
 
     /**
        * Changes whether the flow control warning box should be shown when the flow control
@@ -505,6 +528,15 @@ public slots:
     /** See setUsesMouse() */
     bool usesMouse() const;
 
+    /**
+     * Sets _isPrimaryScreen depending on which screen is currently in
+     * use, primary or alternate
+     *
+     * @param use Set to @c true if the primary screen is in use or to
+     * @c false otherwise (i.e. the alternate screen is in use)
+     */
+    void usingPrimaryScreen(bool use);
+
     void setBracketedPasteMode(bool bracketedPasteMode);
     bool bracketedPasteMode() const;
 
@@ -525,8 +557,33 @@ public slots:
      * @see setColorTable(), setBackgroundColor()
      */
     void setForegroundColor(const QColor& color);
-
+    void setColorTableColor(const int colorId, const QColor &color);
     void selectionChanged();
+
+    void setSelectionOpacity(qreal opacity) {
+        _selectedTextOpacity = opacity;
+    }
+
+    /** Returns the column which the cursor is positioned at. */
+    int  getCursorX() const;
+    /** Returns the line which the cursor is positioned on. */
+    int  getCursorY() const;
+
+    void setCursorX(int x);
+    void setCursorY(int y);
+
+    QString screenGet(int row1, int col1, int row2, int col2, int mode);
+
+    void setLocked(bool enabled) { _isLocked = enabled; }
+    void repaintDisplay(void) {
+        // FIXME: we must call hide() and show() to force a repaint,
+        // this is a bad hack, but it works
+    #if defined(Q_OS_LINUX)
+        this->hide();
+        QTimer::singleShot(100, this, SLOT(show()));
+    #endif
+    }
+    void setMessageParentWidget(QWidget *parent) { messageParentWidget = parent; }
 
 signals:
 
@@ -543,8 +600,10 @@ signals:
      * @param eventType The type of event.  0 for a mouse press / release or 1 for mouse motion
      */
     void mouseSignal(int button, int column, int line, int eventType);
+    void mousePressEventForwarded(QMouseEvent* event);
     void changedFontMetricSignal(int height, int width);
     void changedContentSizeSignal(int height, int width);
+    void changedContentCountSignal(int line, int column);
 
     /**
      * Emitted when the user right clicks on the display, or right-clicks with the Shift
@@ -642,7 +701,6 @@ private slots:
     void tripleClickTimeout();  // resets possibleTripleClick
 
 private:
-
     // -- Drawing helpers --
 
     // determine the width of this text
@@ -657,7 +715,7 @@ private:
     // draws a section of text, all the text in this section
     // has a common color and style
     void drawTextFragment(QPainter& painter, const QRect& rect,
-                          const std::wstring& text, const Character* style);
+                          const std::wstring& text, Character* style,bool isSelection);
     // draws the background for a text fragment
     // if useOpacitySetting is true then the color's alpha value will be set to
     // the display's transparency (set with setOpacity()), otherwise the background
@@ -666,13 +724,16 @@ private:
                         bool useOpacitySetting);
     // draws the cursor character
     void drawCursor(QPainter& painter, const QRect& rect , const QColor& foregroundColor,
-                                       const QColor& backgroundColor , bool& invertColors);
+                                       const QColor& backgroundColor , bool& invertColors,
+                                       bool preedit = false);
     // draws the characters or line graphics in a text fragment
     void drawCharacters(QPainter& painter, const QRect& rect,  const std::wstring& text,
                                            const Character* style, bool invertCharacterColor);
     // draws a string of line graphics
     void drawLineCharString(QPainter& painter, int x, int y,
                             const std::wstring& str, const Character* attributes) const;
+    void drawLineCharString(QPainter& painter, int x, int y, 
+                            wchar_t ch, const Character* attributes) const;
 
     // draws the preedit string for input methods
     void drawInputMethodPreeditString(QPainter& painter , const QRect& rect);
@@ -732,6 +793,7 @@ private:
 
     QGridLayout* _gridLayout;
 
+    CharWidth *_charWidth;
     bool _fixedFont; // has fixed pitch
     int  _fontHeight;     // height
     int  _fontWidth;     // width
@@ -770,8 +832,10 @@ private:
     bool _terminalSizeStartup;
     bool _bidiEnabled;
     bool _mouseMarks;
+    bool _isPrimaryScreen;
     bool _bracketedPasteMode;
     bool _disabledBracketedPasteMode;
+    bool _showResizeNotificationEnabled;
 
     QPoint  _iPntSel; // initial selection point
     QPoint  _pntSel; // current selection point
@@ -824,8 +888,17 @@ private:
 
     qreal _opacity;
 
+    QPixmap *_backgroundPixmapRef = nullptr;
     QPixmap _backgroundImage;
+    QMovie *_backgroundMovie = nullptr;
+    QMediaPlayer* _backgroundVideoPlayer;
+    QVideoSink* _backgroundVideoSink;
+    QPixmap _backgroundVideoFrame;
+    bool _isLocked;
+    QPixmap _lockbackgroundImage;
     BackgroundMode _backgroundMode;
+
+    qreal _selectedTextOpacity;
 
     // list of filters currently applied to the display.  used for links and
     // search highlight
@@ -840,8 +913,8 @@ private:
 
 
     MotionAfterPasting mMotionAfterPasting;
-    bool _confirmMultilinePaste;
-    bool _trimPastedTrailingNewlines;
+    bool _confirmMultilinePaste = true;
+    bool _trimPastedTrailingNewlines = true;
 
     struct InputMethodData
     {
@@ -860,6 +933,13 @@ private:
 
     bool _drawLineChars;
 
+    int _preeditColorIndex = 16; //Color4Intense
+
+    int shiftSelectionStartX = -1;
+    int shiftSelectionStartY = -1;
+
+    QWidget *messageParentWidget = nullptr;
+
 public:
     static void setTransparencyEnabled(bool enable)
     {
@@ -869,8 +949,7 @@ public:
 
 class AutoScrollHandler : public QObject
 {
-Q_OBJECT
-
+    Q_OBJECT
 public:
     AutoScrollHandler(QWidget* parent);
 protected:
@@ -879,6 +958,48 @@ protected:
 private:
     QWidget* widget() const { return static_cast<QWidget*>(parent()); }
     int _timerId;
+};
+
+class MultilineConfirmationMessageBox : public QDialog {
+    Q_OBJECT
+
+public:
+    explicit MultilineConfirmationMessageBox(QWidget *parent = nullptr) : QDialog(parent) {
+        setModal(true);
+        setSizeGripEnabled(true);
+        resize(500, 300);
+        QVBoxLayout *layout = new QVBoxLayout(this);
+        messageText = new QLabel(this);
+        detailedText = new QPlainTextEdit(this);
+        buttonBox = new QDialogButtonBox(QDialogButtonBox::Yes|QDialogButtonBox::No);
+        layout->addWidget(messageText);
+        layout->addWidget(detailedText);
+        layout->addWidget(buttonBox);
+        setLayout(layout);
+        //QSourceHighlite::QSourceHighliter *highlighter =
+        //    new QSourceHighlite::QSourceHighliter(detailedText->document());
+        //highlighter->setCurrentLanguage(QSourceHighlite::QSourceHighliter::CodeBash);
+        detailedText->setLineWrapMode(QPlainTextEdit::NoWrap);
+        detailedText->setReadOnly(true);
+        connect(buttonBox, &QDialogButtonBox::accepted, this, &QDialog::accept);
+        connect(buttonBox, &QDialogButtonBox::rejected, this, &QDialog::reject);
+    }
+    ~MultilineConfirmationMessageBox() override {
+        delete messageText;
+        delete detailedText;
+        delete buttonBox;
+    }
+    void setText(const QString &text) {
+        messageText->setText(text);
+    }
+    void setDetailedText(const QString &text) {
+        detailedText->setPlainText(text);
+    }
+
+private:
+    QLabel *messageText;
+    QPlainTextEdit *detailedText;
+    QDialogButtonBox *buttonBox;
 };
 
 }

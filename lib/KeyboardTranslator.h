@@ -29,10 +29,6 @@
 #include <QMetaType>
 #include <QVarLengthArray>
 
-// Konsole
-//#include "konsole_export.h"
-#define KONSOLEPRIVATE_EXPORT
-
 class QIODevice;
 class QTextStream;
 
@@ -318,7 +314,6 @@ public:
     static const Qt::KeyboardModifier CTRL_MOD;
 
 private:
-
     QMultiHash<int,Entry> _entries; // entries in this keyboard translation,
                                                  // entries are indexed according to
                                                  // their keycode
@@ -456,7 +451,7 @@ private:
  * Manages the keyboard translations available for use by terminal sessions,
  * see KeyboardTranslator.
  */
-class KONSOLEPRIVATE_EXPORT KeyboardTranslatorManager
+class KeyboardTranslatorManager
 {
 public:
     /**

@@ -21,32 +21,37 @@
 #define _Q_TERM_WIDGET
 
 #include <QTranslator>
+#include <QLocale>
 #include <QWidget>
+#include <QClipboard>
 #include "Emulation.h"
 #include "Filter.h"
-#include "qtermwidget_export.h"
-#include "qtermwidget_version.h"
-#include "qtermwidget_interface.h"
 
 class QVBoxLayout;
 class TermWidgetImpl;
 class SearchBar;
 class QUrl;
 
-class QTERMWIDGET_EXPORT QTermWidget : public QWidget, public QTermWidgetInterface {
+class QTermWidget : public QWidget {
     Q_OBJECT
-    Q_PLUGIN_METADATA(IID "lxqt.qtermwidget" FILE "qtermwidget.json")
-    Q_INTERFACES(QTermWidgetInterface)
 
 public:
+    /**
+     * This enum describes the location where the scroll bar is positioned in the display widget.
+     */
+    enum ScrollBarPosition {
+        /** Do not show the scroll bar. */
+        NoScrollBar = 0,
+        /** Show the scroll bar on the left side of the display. */
+        ScrollBarLeft = 1,
+        /** Show the scroll bar on the right side of the display. */
+        ScrollBarRight = 2
+    };
 
     using KeyboardCursorShape = Konsole::Emulation::KeyboardCursorShape;
 
     //Creation of widget
-    QTermWidget(int startnow, // 1 = start shell program immediately
-                QWidget * parent = nullptr);
-    // A dummy constructor for Qt Designer. startnow is 1 by default
-    QTermWidget(QWidget *parent = nullptr);
+    QTermWidget(QWidget *messageParentWidget = nullptr, QWidget *parent = nullptr);
 
     ~QTermWidget() override;
 
@@ -54,58 +59,38 @@ public:
     QSize sizeHint() const override;
 
     // expose TerminalDisplay::TerminalSizeHint, setTerminalSizeHint
-    void setTerminalSizeHint(bool enabled) override;
-    bool terminalSizeHint() override;
-
-    //start shell program if it was not started in constructor
-    void startShellProgram() override;
+    void setTerminalSizeHint(bool enabled);
+    bool terminalSizeHint();
 
     /**
      * Start terminal teletype as is
      * and redirect data for external recipient.
      * It can be used for display and control a remote terminal.
      */
-    void startTerminalTeletype() override;
-
-    int getShellPID() override;
-
-    /**
-     * Get the PID of the foreground process
-     */
-    int getForegroundProcessId() override;
-
-    void changeDir(const QString & dir) override;
+    void startTerminalTeletype();
 
     //look-n-feel, if you don`t like defaults
 
     //  Terminal font
     // Default is application font with family Monospace, size 10
     // Beware of a performance penalty and display/alignment issues when using a proportional font.
-    void setTerminalFont(const QFont & font) override;
-    QFont getTerminalFont() override;
-    void setTerminalOpacity(qreal level) override;
-    void setTerminalBackgroundImage(const QString& backgroundImage) override;
-    void setTerminalBackgroundMode(int mode) override;
+    void setTerminalFont(const QFont & font);
+    QFont getTerminalFont();
+    void setTerminalOpacity(qreal level);
+    void setTerminalBackgroundImage(const QString& backgroundImage);
+    void setTerminalBackgroundMovie(const QString& backgroundMovie);
+    void setTerminalBackgroundVideo(const QString& backgroundVideo);
+    void setTerminalBackgroundMode(int mode);
 
-    //environment
-    void setEnvironment(const QStringList & environment) override;
-
-    //  Shell program, default is /bin/bash
-    void setShellProgram(const QString & program) override;
-
-    //working directory
-    void setWorkingDirectory(const QString & dir) override;
-    QString workingDirectory() override;
-
-    // Shell program args, default is none
-    void setArgs(const QStringList & args) override;
+    //Text codec, default is UTF-8
+    void setTextCodec(QStringEncoder codec);
 
     /** @brief Sets the color scheme, default is white on black
      *
      * @param[in] name The name of the color scheme, either returned from
      * availableColorSchemes() or a full path to a color scheme.
      */
-    void setColorScheme(const QString & name) override;
+    void setColorScheme(const QString & name);
 
     /**
      * @brief Retrieves the available color schemes in the OS for the terminal.
@@ -114,9 +99,15 @@ public:
      *
      * @return A list of color schemes.
      */
-    QStringList getAvailableColorSchemes() override;
+    QStringList getAvailableColorSchemes();
     static QStringList availableColorSchemes();
     static void addCustomColorSchemeDir(const QString& custom_dir);
+
+    void setBackgroundColor(const QColor &color);
+    void setForegroundColor(const QColor &color);
+    void setANSIColor(const int ansiColorId, const QColor &color);
+
+    void setPreeditColorIndex(int index);
 
     /** Sets the history size (in lines)
      *
@@ -124,65 +115,65 @@ public:
      *  lines = 0, no history
      *  lies < 0, infinite history
      */
-    void setHistorySize(int lines) override;
+    void setHistorySize(int lines);
 
     // Returns the history size (in lines)
-    int historySize() const override;
+    int historySize() const;
 
     // Presence of scrollbar
-    void setScrollBarPosition(QTermWidgetInterface::ScrollBarPosition) override;
+    void setScrollBarPosition(ScrollBarPosition);
 
     // Wrapped, scroll to end.
-    void scrollToEnd() override;
+    void scrollToEnd();
 
     // Send some text to terminal
-    void sendText(const QString & text) override;
+    void sendText(const QString & text);
 
     // Send key event to terminal
-    void sendKeyEvent(QKeyEvent* e) override;
+    void sendKeyEvent(QKeyEvent* e);
 
     // Sets whether flow control is enabled
-    void setFlowControlEnabled(bool enabled) override;
+    void setFlowControlEnabled(bool enabled);
 
     // Returns whether flow control is enabled
-    bool flowControlEnabled(void) override;
+    bool flowControlEnabled(void);
 
     /**
      * Sets whether the flow control warning box should be shown
      * when the flow control stop key (Ctrl+S) is pressed.
      */
-    void setFlowControlWarningEnabled(bool enabled) override;
+    void setFlowControlWarningEnabled(bool enabled);
 
     /*! Get all available keyboard bindings
      */
     static QStringList availableKeyBindings();
 
     //! Return current key bindings
-    QString keyBindings() override;
+    QString keyBindings();
 
-    void setMotionAfterPasting(int) override;
+    void setMotionAfterPasting(int);
 
     /** Return the number of lines in the history buffer. */
-    int historyLinesCount() override;
+    int historyLinesCount();
 
-    int screenColumnsCount() override;
-    int screenLinesCount() override;
+    int screenColumnsCount();
+    int screenLinesCount();
 
-    void setSelectionStart(int row, int column) override;
-    void setSelectionEnd(int row, int column) override;
-    void getSelectionStart(int& row, int& column) override;
-    void getSelectionEnd(int& row, int& column) override;
+    void setSelectionStart(int row, int column);
+    void setSelectionEnd(int row, int column);
+    void getSelectionStart(int& row, int& column);
+    void getSelectionEnd(int& row, int& column);
 
     /**
      * Returns the currently selected text.
      * @param preserveLineBreaks Specifies whether new line characters should
      * be inserted into the returned text at the end of each terminal line.
      */
-    QString selectedText(bool preserveLineBreaks = true) override;
+    QString selectedText(bool preserveLineBreaks = true);
 
-    void setMonitorActivity(bool) override;
-    void setMonitorSilence(bool) override;
-    void setSilenceTimeout(int seconds) override;
+    void setMonitorActivity(bool);
+    void setMonitorSilence(bool);
+    void setSilenceTimeout(int seconds);
 
     /** Returns the available hotspot for the given point \em pos.
      *
@@ -202,63 +193,79 @@ public:
     /*
      * Proxy for TerminalDisplay::filterActions
      * */
-    QList<QAction*> filterActions(const QPoint& position) override;
+    QList<QAction*> filterActions(const QPoint& position);
 
-    /**
-     * Returns a pty slave file descriptor.
-     * This can be used for display and control
-     * a remote terminal.
-     */
-    int getPtySlaveFd() const override;
+    int recvData(const char *buff, int len) const;
 
     /**
      * Sets the shape of the keyboard cursor.  This is the cursor drawn
      * at the position in the terminal where keyboard input will appear.
      */
     void setKeyboardCursorShape(KeyboardCursorShape shape);
+    void setKeyboardCursorShape(uint32_t shape);
 
-    void setBlinkingCursor(bool blink) override;
+    void setBlinkingCursor(bool blink);
 
     /** Enables or disables bidi text in the terminal. */
-    void setBidiEnabled(bool enabled) override;
-    bool isBidiEnabled() override;
+    void setBidiEnabled(bool enabled);
+    bool isBidiEnabled();
 
-    /**
-     * Automatically close the terminal session after the shell process exits or
-     * keep it running.
-     */
-    void setAutoClose(bool) override;
-
-    QString title() const override;
-    QString icon() const override;
+    QString title() const;
+    QString icon() const;
 
     /** True if the title() or icon() was (ever) changed by the session. */
-    bool isTitleChanged() const override;
+    bool isTitleChanged() const;
 
     /** change and wrap text corresponding to paste mode **/
-    void bracketText(QString& text) override;
+    void bracketText(QString& text);
 
     /** forcefully disable bracketed paste mode **/
-    void disableBracketedPasteMode(bool disable) override;
-    bool bracketedPasteModeIsDisabled() const override;
+    void disableBracketedPasteMode(bool disable);
+    bool bracketedPasteModeIsDisabled() const;
 
     /** Set the empty space outside the terminal */
-    void setMargin(int) override;
+    void setMargin(int);
 
     /** Get the empty space outside the terminal */
-    int getMargin() const override;
+    int getMargin() const;
 
-    void setDrawLineChars(bool drawLineChars) override;
+    void setDrawLineChars(bool drawLineChars);
 
-    void setBoldIntense(bool boldIntense) override;
+    void setBoldIntense(bool boldIntense);
 
-    void setConfirmMultilinePaste(bool confirmMultilinePaste) override;
-    void setTrimPastedTrailingNewlines(bool trimPastedTrailingNewlines) override;
+    void setConfirmMultilinePaste(bool confirmMultilinePaste);
+    void setTrimPastedTrailingNewlines(bool trimPastedTrailingNewlines);
+    void setEcho(bool echo);
+    void setKeyboardCursorColor(bool useForegroundColor, const QColor& color);
+    void proxySendData(QByteArray data) {
+        emit sendData(data.data(), data.size());
+    }
 
-    QString wordCharacters() const override;
-    void setWordCharacters(const QString& chars) override;
+    void setLocked(bool enabled);
 
-    QTermWidgetInterface *createWidget(int startnow) const override;
+    void setSelectionOpacity(qreal opacity);
+
+    void addHighLightText(const QString &text, const QColor &color);
+    bool isContainHighLightText(const QString &text);
+    void removeHighLightText(const QString &text);
+    void clearHighLightTexts(void);
+
+    void setWordCharacters(const QString &wordCharacters);
+    QString wordCharacters(void);
+    void setShowResizeNotificationEnabled(bool enabled);
+
+    int lines();
+    int columns();
+    int getCursorX();
+    int getCursorY();
+    void setCursorX(int x);
+    void setCursorY(int y);
+
+    QString screenGet(int row1, int col1, int row2, int col2, int mode);
+
+    void setMessageParentWidget(QWidget *parent);
+    void reTranslateUi(void);
+
 signals:
     void finished();
     void copyAvailable(bool);
@@ -282,9 +289,15 @@ signals:
      */
     void sendData(const char *,int);
 
+    void dupDisplayOutput(const char* data,int len);
+
     void profileChanged(const QString & profile);
 
-    void titleChanged();
+    void titleChanged(int title,const QString& newTitle);
+
+    void termSizeChange(int lines, int columns);
+
+    void mousePressEventForwarded(QMouseEvent* event);
 
     /**
      * Signals that we received new data from the process running in the
@@ -292,15 +305,24 @@ signals:
      */
     void receivedData(const QString &text);
 
+    void zmodemSendDetected();
+    void zmodemRecvDetected();
+
 public slots:
-    // Copy selection to clipboard
+    // Copy terminal to clipboard
     void copyClipboard();
 
+    // Copy terminal to selection
+    void copySelection();
+    
     // Paste clipboard to terminal
     void pasteClipboard();
 
     // Paste selection to terminal
     void pasteSelection();
+
+    // Select all text
+    void selectAll();
 
     // Set zoom
     void zoomIn();
@@ -315,11 +337,18 @@ public slots:
 
     /*! Clear the terminal content and move to home position
      */
+    void clearScrollback();
+    void clearScreen();
     void clear();
 
     void toggleShowSearchBar();
 
-    void saveHistory(QIODevice *device);
+    void saveHistory(QIODevice *device, int format = 0);
+    void saveHistory(QTextStream *stream, int format = 0);
+    void screenShot(QPixmap *pixmap);
+    void screenShot(const QString &fileName);
+    void repaintDisplay(void);
+
 protected:
     void resizeEvent(QResizeEvent *) override;
 
@@ -338,23 +367,33 @@ private slots:
      * sends the specified cursor states to the terminal display
      */
     void cursorChanged(Konsole::Emulation::KeyboardCursorShape cursorShape, bool blinkingCursorEnabled);
+    void sizeChange(int lines, int columns){
+        emit termSizeChange(lines, columns);
+    }
 
 private:
+    class HighLightText {
+    public:
+        HighLightText(const QString& text, const QColor& color) : text(text), color(color) {
+            regExpFilter = new Konsole::RegExpFilter();
+            regExpFilter->setRegExp(QRegularExpression(text));
+            regExpFilter->setColor(color);
+        }
+        ~HighLightText() {
+            delete regExpFilter;
+        }
+        QString text;
+        QColor color;
+        Konsole::RegExpFilter *regExpFilter;
+    };
     void search(bool forwards, bool next);
     void setZoom(int step);
-    void init(int startnow);
+    QWidget *messageParentWidget = nullptr;
     TermWidgetImpl * m_impl;
     SearchBar* m_searchBar;
     QVBoxLayout *m_layout;
-    QTranslator *m_translator;
+    QList<HighLightText*> m_highLightTexts;
+    bool m_echo = false;
 };
-
-
-//Maybe useful, maybe not
-
-#ifdef __cplusplus
-extern "C"
-#endif
-void * createTermWidget(int startnow, void * parent);
 
 #endif

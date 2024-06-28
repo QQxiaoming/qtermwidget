@@ -23,12 +23,10 @@
 #ifndef SCREEN_H
 #define SCREEN_H
 
-// Qt
 #include <QRect>
 #include <QTextStream>
 #include <QVarLengthArray>
 
-// Konsole
 #include "Character.h"
 #include "History.h"
 
@@ -316,6 +314,8 @@ public:
     int  getCursorX() const;
     /** Returns the line which the cursor is positioned on. */
     int  getCursorY() const;
+    
+    QString getScreenText(int row1, int col1, int row2, int col2, int mode);
 
     /** Clear the entire screen and move the cursor to the home position.
      * Equivalent to calling clearEntireScreen() followed by home().
@@ -447,6 +447,7 @@ public:
 
     /** Clears the current selection */
     void clearSelection();
+    bool isClearSelection();
 
     /**
       *  Returns true if the character at (@p column, @p line) is part of the

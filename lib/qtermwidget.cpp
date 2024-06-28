@@ -41,17 +41,11 @@
 #define DEFAULT_FONT_FAMILY                   "Monospace"
 #endif
 
-#define STEP_ZOOM 1
+#define STEP_ZOOM 3
 
 using namespace Konsole;
 
-void *createTermWidget(int startnow, void *parent)
-{
-    return (void*) new QTermWidget(startnow, (QWidget*)parent);
-}
-
 class TermWidgetImpl {
-
 public:
     TermWidgetImpl(QWidget* parent = nullptr);
 
@@ -75,22 +69,9 @@ Session *TermWidgetImpl::createSession(QWidget* parent)
 
     session->setTitle(Session::NameRole, QLatin1String("QTermWidget"));
 
-    /* That's a freaking bad idea!!!!
-     * /bin/bash is not there on every system
-     * better set it to the current $SHELL
-     * Maybe you can also make a list available and then let the widget-owner decide what to use.
-     * By setting it to $SHELL right away we actually make the first filecheck obsolete.
-     * But as I'm not sure if you want to do anything else I'll just let both checks in and set this to $SHELL anyway.
-     */
-    //session->setProgram("/bin/bash");
-
-    session->setProgram(QString::fromLocal8Bit(qgetenv("SHELL")));
-
-
-
     QStringList args = QStringList(QString());
-    session->setArguments(args);
-    session->setAutoClose(true);
+
+    session->setCodec(QStringEncoder{QStringConverter::Encoding::Utf8});
 
     session->setFlowControlEnabled(true);
     session->setHistoryType(HistoryTypeBuffer(1000));
@@ -116,17 +97,75 @@ TerminalDisplay *TermWidgetImpl::createTerminalDisplay(Session *session, QWidget
     return display;
 }
 
-
-QTermWidget::QTermWidget(int startnow, QWidget *parent)
+QTermWidget::QTermWidget(QWidget *messageParentWidget, QWidget *parent)
     : QWidget(parent)
 {
-    init(startnow);
-}
+    m_layout = new QVBoxLayout(this);
+    m_layout->setContentsMargins(0, 0, 0, 0);
+    setLayout(m_layout);
 
-QTermWidget::QTermWidget(QWidget *parent)
-    : QWidget(parent)
-{
-    init(1);
+    m_impl = new TermWidgetImpl(this);
+    m_layout->addWidget(m_impl->m_terminalDisplay);
+    m_impl->m_terminalDisplay->setObjectName("terminalDisplay");
+    setMessageParentWidget(messageParentWidget?messageParentWidget:this);
+
+    connect(m_impl->m_session, SIGNAL(bellRequest(QString)), m_impl->m_terminalDisplay, SLOT(bell(QString)));
+    connect(m_impl->m_terminalDisplay, SIGNAL(notifyBell(QString)), this, SIGNAL(bell(QString)));
+    connect(m_impl->m_terminalDisplay, SIGNAL(changedContentCountSignal(int,int)),this, SLOT(sizeChange(int,int)));
+    connect(m_impl->m_terminalDisplay, SIGNAL(mousePressEventForwarded(QMouseEvent*)), this, SIGNAL(mousePressEventForwarded(QMouseEvent*)));
+    connect(m_impl->m_session, SIGNAL(activity()), this, SIGNAL(activity()));
+    connect(m_impl->m_session, SIGNAL(silence()), this, SIGNAL(silence()));
+    connect(m_impl->m_session, &Session::profileChangeCommandReceived, this, &QTermWidget::profileChanged);
+    connect(m_impl->m_session, &Session::receivedData, this, &QTermWidget::receivedData);
+    connect(m_impl->m_session->emulation(), SIGNAL(zmodemRecvDetected()), this, SIGNAL(zmodemRecvDetected()) );
+    connect(m_impl->m_session->emulation(), SIGNAL(zmodemSendDetected()), this, SIGNAL(zmodemSendDetected()) );
+             
+    // That's OK, FilterChain's dtor takes care of UrlFilter.
+    UrlFilter *urlFilter = new UrlFilter();
+    connect(urlFilter, &UrlFilter::activated, this, &QTermWidget::urlActivated);
+    m_impl->m_terminalDisplay->filterChain()->addFilter(urlFilter);
+
+    m_searchBar = new SearchBar(this);
+    m_searchBar->setSizePolicy(QSizePolicy::MinimumExpanding, QSizePolicy::Maximum);
+    connect(m_searchBar, SIGNAL(searchCriteriaChanged()), this, SLOT(find()));
+    connect(m_searchBar, SIGNAL(findNext()), this, SLOT(findNext()));
+    connect(m_searchBar, SIGNAL(findPrevious()), this, SLOT(findPrevious()));
+    m_layout->addWidget(m_searchBar);
+    m_searchBar->hide();
+    QString style_sheet = qApp->styleSheet();
+    m_searchBar->setStyleSheet(style_sheet);
+    
+    this->setFocus( Qt::OtherFocusReason );
+    this->setFocusPolicy( Qt::WheelFocus );
+    m_impl->m_terminalDisplay->resize(this->size());
+
+    this->setFocusProxy(m_impl->m_terminalDisplay);
+    connect(m_impl->m_terminalDisplay, SIGNAL(copyAvailable(bool)),
+            this, SLOT(selectionChanged(bool)));
+    connect(m_impl->m_terminalDisplay, SIGNAL(termGetFocus()),
+            this, SIGNAL(termGetFocus()));
+    connect(m_impl->m_terminalDisplay, SIGNAL(termLostFocus()),
+            this, SIGNAL(termLostFocus()));
+    connect(m_impl->m_terminalDisplay, &TerminalDisplay::keyPressedSignal, this,
+            [this] (QKeyEvent* e, bool) { Q_EMIT termKeyPressed(e); });
+//    m_impl->m_terminalDisplay->setSize(80, 40);
+
+    QFont font = QApplication::font();
+    font.setFamily(QLatin1String(DEFAULT_FONT_FAMILY));
+    font.setPointSize(10);
+    font.setStyleHint(QFont::TypeWriter);
+    setTerminalFont(font);
+    m_searchBar->setFont(font);
+
+    setScrollBarPosition(NoScrollBar);
+    setKeyboardCursorShape(Emulation::KeyboardCursorShape::BlockCursor);
+
+    m_impl->m_session->addView(m_impl->m_terminalDisplay);
+
+    connect(m_impl->m_session, SIGNAL(resizeRequest(QSize)), this, SLOT(setSize(QSize)));
+    connect(m_impl->m_session, SIGNAL(finished()), this, SLOT(sessionFinished()));
+    connect(m_impl->m_session, &Session::titleChanged, this, &QTermWidget::titleChanged);
+    connect(m_impl->m_session, &Session::cursorChanged, this, &QTermWidget::cursorChanged);
 }
 
 void QTermWidget::selectionChanged(bool textSelected)
@@ -199,35 +238,6 @@ void QTermWidget::noMatchFound()
         m_impl->m_terminalDisplay->screenWindow()->clearSelection();
 }
 
-int QTermWidget::getShellPID()
-{
-    return m_impl->m_session->processId();
-}
-
-int QTermWidget::getForegroundProcessId()
-{
-    return m_impl->m_session->foregroundProcessId();
-}
-
-void QTermWidget::changeDir(const QString & dir)
-{
-    /*
-       this is a very hackish way of trying to determine if the shell is in
-       the foreground before attempting to change the directory.  It may not
-       be portable to anything other than Linux.
-    */
-    QString strCmd;
-    strCmd.setNum(getShellPID());
-    strCmd.prepend(QLatin1String("ps -j "));
-    strCmd.append(QLatin1String(" | tail -1 | awk '{ print $5 }' | grep -q \\+"));
-    int retval = system(strCmd.toStdString().c_str());
-
-    if (!retval) {
-        QString cmd = QLatin1String("cd ") + dir + QLatin1Char('\n');
-        sendText(cmd);
-    }
-}
-
 QSize QTermWidget::sizeHint() const
 {
     QSize size = m_impl->m_terminalDisplay->sizeHint();
@@ -245,118 +255,23 @@ bool QTermWidget::terminalSizeHint()
     return m_impl->m_terminalDisplay->terminalSizeHint();
 }
 
-void QTermWidget::startShellProgram()
-{
-    if ( m_impl->m_session->isRunning() ) {
-        return;
-    }
-
-    m_impl->m_session->run();
-}
-
 void QTermWidget::startTerminalTeletype()
 {
-    if ( m_impl->m_session->isRunning() ) {
-        return;
-    }
-
     m_impl->m_session->runEmptyPTY();
     // redirect data from TTY to external recipient
-    connect( m_impl->m_session->emulation(), SIGNAL(sendData(const char *,int)),
-             this, SIGNAL(sendData(const char *,int)) );
-}
-
-void QTermWidget::init(int startnow)
-{
-    m_layout = new QVBoxLayout();
-    m_layout->setContentsMargins(0,0,0,0);
-    setLayout(m_layout);
-
-    // translations
-    // First check $XDG_DATA_DIRS. This follows the implementation in libqtxdg
-    QString d = QFile::decodeName(qgetenv("XDG_DATA_DIRS"));
-    QStringList dirs = d.split(QLatin1Char(':'), Qt::SkipEmptyParts);
-    if (dirs.isEmpty()) {
-        dirs.append(QString::fromLatin1("/usr/local/share"));
-        dirs.append(QString::fromLatin1("/usr/share"));
-    }
-    dirs.append(QFile::decodeName(TRANSLATIONS_DIR));
-
-    m_translator = new QTranslator(this);
-
-    for (const QString& dir : std::as_const(dirs)) {
-        //qDebug() << "Trying to load translation file from dir" << dir;
-        if (m_translator->load(QLocale::system(), QLatin1String("qtermwidget"), QLatin1String(QLatin1String("_")), dir)) {
-            qApp->installTranslator(m_translator);
-            //qDebug() << "Translations found in" << dir;
-            break;
+    connect( m_impl->m_session->emulation(), &Emulation::sendData, this, [this](const char *buff, int len) {
+        if (m_echo) {
+            recvData(buff, len);
         }
-    }
-
-    m_impl = new TermWidgetImpl(this);
-    m_layout->addWidget(m_impl->m_terminalDisplay);
-
-    connect(m_impl->m_session, SIGNAL(bellRequest(QString)), m_impl->m_terminalDisplay, SLOT(bell(QString)));
-    connect(m_impl->m_terminalDisplay, SIGNAL(notifyBell(QString)), this, SIGNAL(bell(QString)));
-
-    connect(m_impl->m_session, SIGNAL(activity()), this, SIGNAL(activity()));
-    connect(m_impl->m_session, SIGNAL(silence()), this, SIGNAL(silence()));
-    connect(m_impl->m_session, &Session::profileChangeCommandReceived, this, &QTermWidget::profileChanged);
-    connect(m_impl->m_session, &Session::receivedData, this, &QTermWidget::receivedData);
-
-    // That's OK, FilterChain's dtor takes care of UrlFilter.
-    UrlFilter *urlFilter = new UrlFilter();
-    connect(urlFilter, &UrlFilter::activated, this, &QTermWidget::urlActivated);
-    m_impl->m_terminalDisplay->filterChain()->addFilter(urlFilter);
-
-    m_searchBar = new SearchBar(this);
-    m_searchBar->setSizePolicy(QSizePolicy::MinimumExpanding, QSizePolicy::Maximum);
-    connect(m_searchBar, SIGNAL(searchCriteriaChanged()), this, SLOT(find()));
-    connect(m_searchBar, SIGNAL(findNext()), this, SLOT(findNext()));
-    connect(m_searchBar, SIGNAL(findPrevious()), this, SLOT(findPrevious()));
-    m_layout->addWidget(m_searchBar);
-    m_searchBar->hide();
-
-    if (startnow && m_impl->m_session) {
-        m_impl->m_session->run();
-    }
-
-    this->setFocus( Qt::OtherFocusReason );
-    this->setFocusPolicy( Qt::WheelFocus );
-    m_impl->m_terminalDisplay->resize(this->size());
-
-    this->setFocusProxy(m_impl->m_terminalDisplay);
-    connect(m_impl->m_terminalDisplay, SIGNAL(copyAvailable(bool)),
-            this, SLOT(selectionChanged(bool)));
-    connect(m_impl->m_terminalDisplay, SIGNAL(termGetFocus()),
-            this, SIGNAL(termGetFocus()));
-    connect(m_impl->m_terminalDisplay, SIGNAL(termLostFocus()),
-            this, SIGNAL(termLostFocus()));
-    connect(m_impl->m_terminalDisplay, &TerminalDisplay::keyPressedSignal, this,
-            [this] (QKeyEvent* e, bool) { Q_EMIT termKeyPressed(e); });
-//    m_impl->m_terminalDisplay->setSize(80, 40);
-
-    QFont font = QApplication::font();
-    font.setFamily(QLatin1String(DEFAULT_FONT_FAMILY));
-    font.setPointSize(10);
-    font.setStyleHint(QFont::TypeWriter);
-    setTerminalFont(font);
-    m_searchBar->setFont(font);
-
-    setScrollBarPosition(NoScrollBar);
-    setKeyboardCursorShape(Emulation::KeyboardCursorShape::BlockCursor);
-
-    m_impl->m_session->addView(m_impl->m_terminalDisplay);
-
-    connect(m_impl->m_session, SIGNAL(resizeRequest(QSize)), this, SLOT(setSize(QSize)));
-    connect(m_impl->m_session, SIGNAL(finished()), this, SLOT(sessionFinished()));
-    connect(m_impl->m_session, &Session::titleChanged, this, &QTermWidget::titleChanged);
-    connect(m_impl->m_session, &Session::cursorChanged, this, &QTermWidget::cursorChanged);
+        emit sendData(buff, len);
+    });
+    connect( m_impl->m_session->emulation(), &Emulation::dupDisplayOutput, this, &QTermWidget::dupDisplayOutput);
 }
-
 
 QTermWidget::~QTermWidget()
 {
+    clearHighLightTexts();
+    delete m_searchBar;
     delete m_impl;
     emit destroyed();
 }
@@ -382,53 +297,26 @@ void QTermWidget::setTerminalBackgroundImage(const QString& backgroundImage)
     m_impl->m_terminalDisplay->setBackgroundImage(backgroundImage);
 }
 
+void QTermWidget::setTerminalBackgroundMovie(const QString& backgroundMovie)
+{
+    m_impl->m_terminalDisplay->setBackgroundMovie(backgroundMovie);
+}
+
+void QTermWidget::setTerminalBackgroundVideo(const QString& backgroundVideo)
+{
+    m_impl->m_terminalDisplay->setBackgroundVideo(backgroundVideo);
+}
+
 void QTermWidget::setTerminalBackgroundMode(int mode)
 {
     m_impl->m_terminalDisplay->setBackgroundMode((Konsole::BackgroundMode)mode);
 }
 
-void QTermWidget::setShellProgram(const QString &program)
+void QTermWidget::setTextCodec(QStringEncoder codec)
 {
     if (!m_impl->m_session)
         return;
-    m_impl->m_session->setProgram(program);
-}
-
-void QTermWidget::setWorkingDirectory(const QString& dir)
-{
-    if (!m_impl->m_session)
-        return;
-    m_impl->m_session->setInitialWorkingDirectory(dir);
-}
-
-QString QTermWidget::workingDirectory()
-{
-    if (!m_impl->m_session)
-        return QString();
-
-#ifdef Q_OS_LINUX
-    // Christian Surlykke: On linux we could look at /proc/<pid>/cwd which should be a link to current
-    // working directory (<pid>: process id of the shell). I don't know about BSD.
-    // Maybe we could just offer it when running linux, for a start.
-    QDir d(QString::fromLatin1("/proc/%1/cwd").arg(getShellPID()));
-    if (!d.exists())
-    {
-        qDebug() << "Cannot find" << d.dirName();
-        goto fallback;
-    }
-    return d.canonicalPath();
-#endif
-
-fallback:
-    // fallback, initial WD
-    return m_impl->m_session->initialWorkingDirectory();
-}
-
-void QTermWidget::setArgs(const QStringList &args)
-{
-    if (!m_impl->m_session)
-        return;
-    m_impl->m_session->setArguments(args);
+    m_impl->m_session->setCodec(std::move(codec));
 }
 
 void QTermWidget::setColorScheme(const QString& origName)
@@ -461,7 +349,7 @@ void QTermWidget::setColorScheme(const QString& origName)
 
     if (! cs)
     {
-        QMessageBox::information(this,
+        QMessageBox::information(messageParentWidget,
                                  tr("Color Scheme Error"),
                                  tr("Cannot load color scheme: %1").arg(name));
         return;
@@ -489,6 +377,26 @@ QStringList QTermWidget::availableColorSchemes()
 void QTermWidget::addCustomColorSchemeDir(const QString& custom_dir)
 {
     ColorSchemeManager::instance()->addCustomColorSchemeDir(custom_dir);
+}
+
+void QTermWidget::setBackgroundColor(const QColor &color)
+{
+    m_impl->m_terminalDisplay->setBackgroundColor(color);
+}
+
+void QTermWidget::setForegroundColor(const QColor &color)
+{
+    m_impl->m_terminalDisplay->setForegroundColor(color);
+}
+
+void QTermWidget::setANSIColor(const int ansiColorId, const QColor &color)
+{
+    m_impl->m_terminalDisplay->setColorTableColor(ansiColorId, color);
+}
+
+void QTermWidget::setPreeditColorIndex(int index)
+{
+    m_impl->m_terminalDisplay->setPreeditColorIndex(index);
 }
 
 void QTermWidget::setSize(const QSize &size)
@@ -570,7 +478,12 @@ bool QTermWidget::bracketedPasteModeIsDisabled() const
 
 void QTermWidget::copyClipboard()
 {
-    m_impl->m_terminalDisplay->copyClipboard();
+    m_impl->m_terminalDisplay->copyClipboard(QClipboard::Clipboard);
+}
+
+void QTermWidget::copySelection()
+{
+    m_impl->m_terminalDisplay->copyClipboard(QClipboard::Selection);
 }
 
 void QTermWidget::pasteClipboard()
@@ -581,6 +494,11 @@ void QTermWidget::pasteClipboard()
 void QTermWidget::pasteSelection()
 {
     m_impl->m_terminalDisplay->pasteSelection();
+}
+
+void QTermWidget::selectAll()
+{
+    m_impl->m_terminalDisplay->selectAll();
 }
 
 void QTermWidget::setZoom(int step)
@@ -608,9 +526,19 @@ void QTermWidget::setKeyBindings(const QString & kb)
 
 void QTermWidget::clear()
 {
+    clearScreen();
+    clearScrollback();
+}
+
+void QTermWidget::clearScrollback()
+{
+    m_impl->m_session->clearHistory();
+}
+
+void QTermWidget::clearScreen()
+{
     m_impl->m_session->emulation()->reset();
     m_impl->m_session->refresh();
-    m_impl->m_session->clearHistory();
 }
 
 void QTermWidget::setFlowControlEnabled(bool enabled)
@@ -644,11 +572,6 @@ void QTermWidget::setFlowControlWarningEnabled(bool enabled)
         // Do not show warning label if flow control is disabled
         m_impl->m_terminalDisplay->setFlowControlWarningEnabled(enabled);
     }
-}
-
-void QTermWidget::setEnvironment(const QStringList& environment)
-{
-    m_impl->m_session->setEnvironment(environment);
 }
 
 void QTermWidget::setMotionAfterPasting(int action)
@@ -728,14 +651,19 @@ QList<QAction*> QTermWidget::filterActions(const QPoint& position)
     return m_impl->m_terminalDisplay->filterActions(position);
 }
 
-int QTermWidget::getPtySlaveFd() const
+int QTermWidget::recvData(const char *buff, int len) const
 {
-    return m_impl->m_session->getPtySlaveFd();
+    return m_impl->m_session->recvData(buff,len);
 }
 
 void QTermWidget::setKeyboardCursorShape(KeyboardCursorShape shape)
 {
     m_impl->m_terminalDisplay->setKeyboardCursorShape(shape);
+}
+
+void QTermWidget::setKeyboardCursorShape(uint32_t shape)
+{
+    m_impl->m_terminalDisplay->setKeyboardCursorShape((KeyboardCursorShape)shape);
 }
 
 void QTermWidget::setBlinkingCursor(bool blink)
@@ -774,11 +702,6 @@ bool QTermWidget::isTitleChanged() const
     return m_impl->m_session->isTitleChanged();
 }
 
-void QTermWidget::setAutoClose(bool enabled)
-{
-    m_impl->m_session->setAutoClose(enabled);
-}
-
 void QTermWidget::cursorChanged(Konsole::Emulation::KeyboardCursorShape cursorShape, bool blinkingCursorEnabled)
 {
     // TODO: A switch to enable/disable DECSCUSR?
@@ -796,12 +719,51 @@ int QTermWidget::getMargin() const
     return m_impl->m_terminalDisplay->margin();
 }
 
-void QTermWidget::saveHistory(QIODevice *device)
+void QTermWidget::saveHistory(QTextStream *stream, int format)
+{
+    TerminalCharacterDecoder *decoder;
+    if(format == 0) {
+        decoder = new PlainTextDecoder;
+    } else {
+        decoder = new HTMLDecoder;
+    }
+    decoder->begin(stream);
+    m_impl->m_session->emulation()->writeToStream(decoder, 0, m_impl->m_session->emulation()->lineCount());
+    delete decoder;
+}
+
+void QTermWidget::saveHistory(QIODevice *device, int format)
 {
     QTextStream stream(device);
-    PlainTextDecoder decoder;
-    decoder.begin(&stream);
-    m_impl->m_session->emulation()->writeToStream(&decoder, 0, m_impl->m_session->emulation()->lineCount());
+    saveHistory(&stream, format);
+}
+
+void QTermWidget::screenShot(QPixmap *pixmap)
+{
+    QPixmap currPixmap(m_impl->m_terminalDisplay->size());
+    m_impl->m_terminalDisplay->render(&currPixmap);
+    *pixmap = currPixmap.scaled(pixmap->size(), Qt::KeepAspectRatio, Qt::SmoothTransformation);
+}
+
+void QTermWidget::repaintDisplay(void)
+{
+    m_impl->m_terminalDisplay->repaintDisplay();
+}
+
+void QTermWidget::screenShot(const QString &fileName)
+{
+    qreal deviceratio = m_impl->m_terminalDisplay->devicePixelRatio();
+    deviceratio = deviceratio*2;
+    QPixmap pixmap(m_impl->m_terminalDisplay->size() * deviceratio);
+    pixmap.setDevicePixelRatio(deviceratio);
+    m_impl->m_terminalDisplay->render(&pixmap);
+    pixmap.save(fileName);
+}
+
+void QTermWidget::setLocked(bool enabled)
+{
+    this->setEnabled(!enabled);
+    m_impl->m_terminalDisplay->setLocked(enabled);
 }
 
 void QTermWidget::setDrawLineChars(bool drawLineChars)
@@ -822,18 +784,113 @@ void QTermWidget::setTrimPastedTrailingNewlines(bool trimPastedTrailingNewlines)
     m_impl->m_terminalDisplay->setTrimPastedTrailingNewlines(trimPastedTrailingNewlines);
 }
 
-QString QTermWidget::wordCharacters() const
+void QTermWidget::setEcho(bool echo) {
+    m_echo = echo;
+}
+
+void QTermWidget::setKeyboardCursorColor(bool useForegroundColor, const QColor& color) {
+    m_impl->m_terminalDisplay->setKeyboardCursorColor(useForegroundColor, color);
+}
+
+void QTermWidget::addHighLightText(const QString &text, const QColor &color)
 {
+    for (int i = 0; i < m_highLightTexts.size(); i++) {
+        if (m_highLightTexts.at(i)->text == text) {
+            return;
+        }
+    }
+    HighLightText *highLightText = new HighLightText(text,color);
+    m_highLightTexts.append(highLightText);
+    m_impl->m_terminalDisplay->filterChain()->addFilter(highLightText->regExpFilter);
+    m_impl->m_terminalDisplay->updateFilters();
+    m_impl->m_terminalDisplay->repaint();
+}
+
+bool QTermWidget::isContainHighLightText(const QString &text)
+{
+    for (int i = 0; i < m_highLightTexts.size(); i++) {
+        if (m_highLightTexts.at(i)->text == text) {
+            return true;
+        }
+    }
+    return false;
+}
+
+void QTermWidget::removeHighLightText(const QString &text)
+{
+    for (int i = 0; i < m_highLightTexts.size(); i++) {
+        if (m_highLightTexts.at(i)->text == text) {
+            m_impl->m_terminalDisplay->filterChain()->removeFilter(m_highLightTexts.at(i)->regExpFilter);
+            delete m_highLightTexts.at(i);
+            m_highLightTexts.removeAt(i);
+            m_impl->m_terminalDisplay->updateFilters();
+            break;
+        }
+    }
+    m_impl->m_terminalDisplay->repaint();
+}
+
+void QTermWidget::clearHighLightTexts(void)
+{
+    for (int i = 0; i < m_highLightTexts.size(); i++) {
+        m_impl->m_terminalDisplay->filterChain()->removeFilter(m_highLightTexts.at(i)->regExpFilter);
+        delete m_highLightTexts.at(i);
+    }
+    m_impl->m_terminalDisplay->updateFilters();
+    m_highLightTexts.clear();
+    m_impl->m_terminalDisplay->repaint();
+}
+
+void QTermWidget::setWordCharacters(const QString &wordCharacters)
+{
+    m_impl->m_terminalDisplay->setWordCharacters(wordCharacters);
+}
+
+QString QTermWidget::wordCharacters(void) {
     return m_impl->m_terminalDisplay->wordCharacters();
 }
 
-void QTermWidget::setWordCharacters(const QString& chars)
-{
-    m_impl->m_terminalDisplay->setWordCharacters(chars);
+void QTermWidget::setShowResizeNotificationEnabled(bool enabled) {
+    m_impl->m_terminalDisplay->setShowResizeNotificationEnabled(enabled);
 }
 
+int QTermWidget::lines() {
+    return m_impl->m_terminalDisplay->lines();
+}
 
-QTermWidgetInterface* QTermWidget::createWidget(int startnow) const
-{
-   return new QTermWidget(startnow);
+int QTermWidget::columns() {
+    return m_impl->m_terminalDisplay->columns();
+}
+
+int QTermWidget::getCursorX() {
+    return m_impl->m_terminalDisplay->getCursorX();
+}
+
+int QTermWidget::getCursorY() {
+    return m_impl->m_terminalDisplay->getCursorY();
+}
+
+void QTermWidget::setCursorX(int x) {
+    m_impl->m_terminalDisplay->setCursorX(x);
+}
+
+void QTermWidget::setCursorY(int y) {
+    m_impl->m_terminalDisplay->setCursorY(y);
+}
+
+QString QTermWidget::screenGet(int row1, int col1, int row2, int col2, int mode) {
+    return m_impl->m_terminalDisplay->screenGet(row1, col1, row2, col2, mode);
+}
+
+void QTermWidget::setSelectionOpacity(qreal opacity) {
+    m_impl->m_terminalDisplay->setSelectionOpacity(opacity);
+}
+
+void QTermWidget::setMessageParentWidget(QWidget *parent) {
+    messageParentWidget = parent;
+    m_impl->m_terminalDisplay->setMessageParentWidget(messageParentWidget);
+}
+
+void QTermWidget::reTranslateUi(void) {
+    m_searchBar->retranslateUi();
 }

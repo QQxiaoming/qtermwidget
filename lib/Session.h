@@ -25,21 +25,16 @@
 #ifndef SESSION_H
 #define SESSION_H
 
-#include <QProcess>
 #include <QStringList>
 #include <QWidget>
 
 #include "Emulation.h"
 #include "History.h"
 
-class KProcess;
-
 namespace Konsole {
 
 class Emulation;
-class Pty;
 class TerminalDisplay;
-//class ZModemDialog;
 
 /**
  * Represents a terminal session consisting of a pseudo-teletype and a terminal emulation.
@@ -57,29 +52,14 @@ class Session : public QObject {
 
 public:
     Q_PROPERTY(QString name READ nameTitle)
-    Q_PROPERTY(int processId READ processId)
     Q_PROPERTY(QString keyBindings READ keyBindings WRITE setKeyBindings)
     Q_PROPERTY(QSize size READ size WRITE setSize)
 
     /**
      * Constructs a new session.
-     *
-     * To start the terminal process, call the run() method,
-     * after specifying the program and arguments
-     * using setProgram() and setArguments()
-     *
-     * If no program or arguments are specified explicitly, the Session
-     * falls back to using the program specified in the SHELL environment
-     * variable.
      */
     Session(QObject* parent = nullptr);
     ~Session() override;
-
-    /**
-     * Returns true if the session is currently running.  This will be true
-     * after run() has been called successfully.
-     */
-    bool isRunning() const;
 
     /**
      * Sets the profile associated with this session.
@@ -126,18 +106,6 @@ public:
      */
     Emulation * emulation() const;
 
-    /**
-     * Returns the environment of this session as a list of strings like
-     * VARIABLE=VALUE
-     */
-    QStringList environment() const;
-    /**
-     * Sets the environment for this session.
-     * @p environment should be a list of strings like
-     * VARIABLE=VALUE
-     */
-    void setEnvironment(const QStringList & environment);
-
     /** Returns the unique ID for this session. */
     int sessionId() const;
 
@@ -172,31 +140,6 @@ public:
     void setTabTitleFormat(TabTitleContext context , const QString & format);
     /** Returns the format used by this session for tab titles. */
     QString tabTitleFormat(TabTitleContext context) const;
-
-
-    /** Returns the arguments passed to the shell process when run() is called. */
-    QStringList arguments() const;
-    /** Returns the program name of the shell process started when run() is called. */
-    QString program() const;
-
-    /**
-     * Sets the command line arguments which the session's program will be passed when
-     * run() is called.
-     */
-    void setArguments(const QStringList & arguments);
-    /** Sets the program to be executed when run() is called. */
-    void setProgram(const QString & program);
-
-    /** Returns the session's current working directory. */
-    QString initialWorkingDirectory() {
-        return _initialWorkingDir;
-    }
-
-    /**
-     * Sets the initial working directory for the session when it is run
-     * This has no effect once the session has been started.
-     */
-    void setInitialWorkingDirectory( const QString & dir );
 
     /**
      * Sets the type of history store used by this session.
@@ -287,20 +230,6 @@ public:
     /** Flag if the title/icon was changed by user/shell. */
     bool isTitleChanged() const;
 
-    /** Specifies whether a utmp entry should be created for the pty used by this session. */
-    void setAddToUtmp(bool);
-
-    /** Sends the specified @p signal to the terminal process. */
-    bool sendSignal(int signal);
-
-    /**
-     * Specifies whether to close the session automatically when the terminal
-     * process terminates.
-     */
-    void setAutoClose(bool b) {
-        _autoClose = b;
-    }
-
     /**
      * Sets whether flow control is enabled for this terminal
      * session.
@@ -317,19 +246,6 @@ public:
 
     void sendKeyEvent(QKeyEvent* e) const;
 
-    /**
-     * Returns the process id of the terminal process.
-     * This is the id used by the system API to refer to the process.
-     */
-    int processId() const;
-
-    /**
-     * Returns the process id of the terminal's foreground process.
-     * This is initially the same as processId() but can change
-     * as the user starts other programs inside the terminal.
-     */
-    int foregroundProcessId() const;
-
     /** Returns the terminal session's window size in lines and columns. */
     QSize size();
     /**
@@ -339,6 +255,9 @@ public:
      * @param size The size in lines and columns to request.
      */
     void setSize(const QSize & size);
+
+    /** Sets the text codec used by this session's terminal emulation. */
+    void setCodec(QStringEncoder codec) const;
 
     /**
      * Sets whether the session has a dark background or not.  The session
@@ -371,17 +290,13 @@ public:
      * This can be used for display and control
      * a remote terminal.
      */
-    int getPtySlaveFd() const;
+    int recvData(const char *buff, int len);
+
+    // Returns true if the current screen is the secondary/alternate one
+    // or false if it's the primary/normal buffer
+    bool isPrimaryScreen();
 
 public slots:
-
-    /**
-     * Starts the terminal session.
-     *
-     * This creates the terminal process and connects the teletype to it.
-     */
-    void run();
-
     /**
      * Starts the terminal session for "as is" PTY
      * (without the direction a data to internal terminal process).
@@ -419,7 +334,7 @@ signals:
     void receivedData( const QString & text );
 
     /** Emitted when the session's title has changed. */
-    void titleChanged();
+    void titleChanged(int title,const QString& newTitle);
 
     /** Emitted when the session's profile has changed. */
     void profileChanged(const QString & profile);
@@ -452,9 +367,6 @@ signals:
     /** TODO: Document me. */
     void openUrlRequest(const QString & url);
 
-    /** TODO: Document me. */
-//  void zmodemDetected();
-
     /**
      * Emitted when the terminal process requests a change
      * in the size of the terminal window.
@@ -479,6 +391,15 @@ signals:
     void flowControlEnabledChanged(bool enabled);
 
     /**
+     * Emitted when the active screen is switched, to indicate whether the primary
+     * screen is in use.
+     *
+     * This signal serves as a relayer of Emulation::priamyScreenInUse(bool),
+     * making it usable for higher level component.
+     */
+    void primaryScreenInUse(bool use);
+
+    /**
      * Broker for Emulation::cursorChanged() signal
      */
     void cursorChanged(Emulation::KeyboardCursorShape cursorShape, bool blinkingCursorEnabled);
@@ -487,10 +408,6 @@ signals:
     void activity();
 
 private slots:
-    void done(int, QProcess::ExitStatus );
-
-//  void fireZModemDetected();
-
     void onReceiveBlock( const char * buffer, int len );
     void monitorTimerDone();
 
@@ -507,14 +424,15 @@ private slots:
 //  void zmodemRcvBlock(const char *data, int len);
 //  void zmodemFinished();
 
-private:
+    // Relays the signal from Emulation and sets _isPrimaryScreen
+    void onPrimaryScreenInUse(bool use);
 
+private:
     void updateTerminalSize();
     WId windowId() const;
 
     int            _uniqueIdentifier;
 
-    Pty     *_shellProcess;
     Emulation  *  _emulation;
 
     QList<TerminalDisplay *> _views;
@@ -523,7 +441,6 @@ private:
     bool           _monitorSilence;
     bool           _notifiedActivity;
     bool           _masterMode;
-    bool           _autoClose;
     bool           _wantedClose;
     QTimer    *    _monitorTimer;
 
@@ -539,17 +456,10 @@ private:
     QString        _iconName;
     QString        _iconText; // as set by: echo -en '\033]1;IconText\007
     bool           _isTitleChanged; ///< flag if the title/icon was changed by user
-    bool           _addToUtmp;
     bool           _flowControl;
     bool           _fullScripting;
 
-    QString        _program;
-    QStringList    _arguments;
-
-    QStringList    _environment;
     int            _sessionId;
-
-    QString        _initialWorkingDir;
 
     // ZModem
 //  bool           _zmodemBusy;
@@ -566,8 +476,7 @@ private:
 
     static int lastSessionId;
 
-    int ptySlaveFd;
-
+    bool _isPrimaryScreen;
 };
 
 /**

@@ -34,14 +34,10 @@
 #include <QFile>
 #include <QDesktopServices>
 #include <QUrl>
+#include <QDir>
 
-// KDE
-//#include <KLocale>
-//#include <KRun>
-
-// Konsole
 #include "TerminalCharacterDecoder.h"
-#include "konsole_wcwidth.h"
+#include "CharWidth.h"
 
 using namespace Konsole;
 
@@ -221,7 +217,7 @@ void Filter::getLineColumn(int position , int& startLine , int& startColumn)
         if ( _linePositions->value(i) <= position && position < nextLine )
         {
             startLine = i;
-            startColumn = string_width(buffer()->mid(_linePositions->value(i),position - _linePositions->value(i)).toStdWString());
+            startColumn = CharWidth::string_unicode_width(buffer()->mid(_linePositions->value(i),position - _linePositions->value(i)));
             return;
         }
     }
@@ -284,6 +280,7 @@ Filter::HotSpot::HotSpot(int startLine , int startColumn , int endLine , int end
     , _endLine(endLine)
     , _endColumn(endColumn)
     , _type(NotSpecified)
+    , _color(Qt::red)
 {
 }
 QList<QAction*> Filter::HotSpot::actions()
@@ -310,9 +307,17 @@ Filter::HotSpot::Type Filter::HotSpot::type() const
 {
     return _type;
 }
+QColor Filter::HotSpot::color() const
+{
+    return _color;
+}
 void Filter::HotSpot::setType(Type type)
 {
     _type = type;
+}
+void Filter::HotSpot::setColor(const QColor& color)
+{
+    _color = color;
 }
 
 RegExpFilter::RegExpFilter()
@@ -362,11 +367,10 @@ void RegExpFilter::process()
     auto match = _searchText.match(emptyString, 0, 
         QRegularExpression::NormalMatch, QRegularExpression::AnchorAtOffsetMatchOption); 
     if (match.hasMatch())
-    {
         return;
-    }
 
     match = _searchText.match(*text);
+
     while (match.hasMatch()) {
         int startLine = 0;
         int endLine = 0;
@@ -399,8 +403,10 @@ void RegExpFilter::process()
 RegExpFilter::HotSpot* RegExpFilter::newHotSpot(int startLine,int startColumn,
                                                 int endLine,int endColumn)
 {
-    return new RegExpFilter::HotSpot(startLine,startColumn,
+    HotSpot *spot = new RegExpFilter::HotSpot(startLine,startColumn,
                                                   endLine,endColumn);
+    spot->setColor(color());                                      
+    return spot;
 }
 RegExpFilter::HotSpot* UrlFilter::newHotSpot(int startLine,int startColumn,int endLine,
                                                     int endColumn)
@@ -426,6 +432,8 @@ UrlFilter::HotSpot::UrlType UrlFilter::HotSpot::urlType() const
         return StandardUrl;
     else if ( EmailAddressRegExp.match(url).hasMatch() )
         return Email;
+    else if ( FilePathRegExp.match(url).hasMatch() )
+        return FilePath;
     else
         return Unknown;
 }
@@ -457,6 +465,20 @@ void UrlFilter::HotSpot::activate(const QString& actionName)
         {
             url.prepend(QLatin1String("mailto:"));
         }
+        else if ( kind == FilePath )
+        {
+            url.replace(QLatin1Char('\\'),QLatin1Char('/'));
+            url.replace(QLatin1Char('~'),QDir::homePath());
+            if(url.startsWith(QLatin1String("/"))) {
+                url.prepend(QLatin1String("file://"));
+            } else if(url.startsWith(QLatin1String("."))) {
+                url.prepend(QLatin1String("relative:"));
+            } else if(url.startsWith(QLatin1String(".."))) {
+                url.prepend(QLatin1String("relative:"));
+            } else {
+                url.prepend(QLatin1String("file:///"));
+            }
+        }
 
         _urlObject->emitActivated(QUrl(url, QUrl::StrictMode), actionName != QLatin1String("click-action"));
     }
@@ -474,10 +496,21 @@ const QRegularExpression UrlFilter::FullUrlRegExp(QLatin1String("(www\\.(?!\\.)|
 // email address:
 // [word chars, dots or dashes]@[word chars, dots or dashes].[word chars]
 const QRegularExpression UrlFilter::EmailAddressRegExp(QLatin1String("\\b(\\w|\\.|-)+@(\\w|\\.|-)+\\.\\w+\\b"));
-
+// file path:
+// '[drive letter]:\' '\\' '.\' or '..\' followed by anything other than whitespaces, <, >, ' or ", and ends before whitespaces, <, >, ', ", ], !, comma and dot
+const QRegularExpression UrlFilter::WindowsFilePathRegExp(QLatin1String("([a-zA-Z]:\\\\|\\\\\\\\|\\.\\\\|\\.\\.\\\\)[^\\s<>'\"]+[^!,\\.\\s<>'\"\\]]"));
+// '/' '~/'  './' or '../' followed by anything other than whitespaces, <, >, ' or ", and ends before whitespaces, <, >, ', ", ], !, comma and dot
+const QRegularExpression UrlFilter::UnixFilePathRegExp(QLatin1String("((\\./|~/|\\.\\./)[^\\s<>'\"]+|/[^\\s<>'\"]+)[^!,\\.\\s<>'\"\\]]"));
+const QRegularExpression UrlFilter::FilePathRegExp(QLatin1String("(")+
+                                            WindowsFilePathRegExp.pattern()+QLatin1Char('|')+
+                                            UnixFilePathRegExp.pattern()+
+                                           QLatin1Char(')'));
 // matches full url or email address
-const QRegularExpression UrlFilter::CompleteUrlRegExp(QLatin1Char('(')+FullUrlRegExp.pattern()+QLatin1Char('|')+
-                                            EmailAddressRegExp.pattern()+QLatin1Char(')'));
+const QRegularExpression UrlFilter::CompleteUrlRegExp(QLatin1Char('(')+
+                                            FullUrlRegExp.pattern()+QLatin1Char('|')+
+                                            EmailAddressRegExp.pattern()+QLatin1Char('|')+
+                                            FilePathRegExp.pattern()+
+                                           QLatin1Char(')'));
 
 UrlFilter::UrlFilter()
 {
@@ -513,7 +546,7 @@ QList<QAction*> UrlFilter::HotSpot::actions()
     QAction* openAction = new QAction(_urlObject);
     QAction* copyAction = new QAction(_urlObject);;
 
-    Q_ASSERT( kind == StandardUrl || kind == Email );
+    Q_ASSERT( kind == StandardUrl || kind == Email || kind == FilePath );
 
     if ( kind == StandardUrl )
     {
@@ -524,6 +557,11 @@ QList<QAction*> UrlFilter::HotSpot::actions()
     {
         openAction->setText(QObject::tr("Send Email To..."));
         copyAction->setText(QObject::tr("Copy Email Address"));
+    }
+    else if ( kind == FilePath )
+    {
+        openAction->setText(QObject::tr("Open Path"));
+        copyAction->setText(QObject::tr("Copy Path"));
     }
 
     // object names are set here so that the hotspot performs the

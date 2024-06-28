@@ -32,15 +32,7 @@
 #include <QDir>
 #include <QRegularExpression>
 #include <QRandomGenerator>
-
-
-// KDE
-//#include <KColorScheme>
-//#include <KConfig>
-//#include <KLocale>
-//#include <KDebug>
-//#include <KConfigGroup>
-//#include <KStandardDirs>
+#include <QStringView>
 
 using namespace Konsole;
 
@@ -364,9 +356,9 @@ void ColorScheme::readColorEntry(QSettings * s , int index)
         if (hexColorPattern.match(colorStr).hasMatch())
         {
             // Parsing is always ok as already matched by the regexp
-            r = colorStr.mid(1, 2).toInt(nullptr, 16);
-            g = colorStr.mid(3, 2).toInt(nullptr, 16);
-            b = colorStr.mid(5, 2).toInt(nullptr, 16);
+            r = QStringView{colorStr}.mid(1, 2).toInt(nullptr, 16);
+            g = QStringView{colorStr}.mid(3, 2).toInt(nullptr, 16);
+            b = QStringView{colorStr}.mid(5, 2).toInt(nullptr, 16);
             ok = true;
         }
     }
@@ -503,19 +495,12 @@ ColorSchemeManager::~ColorSchemeManager()
 }
 void ColorSchemeManager::loadAllColorSchemes()
 {
-    //qDebug() << "loadAllColorSchemes";
-    int failed = 0;
-
     QList<QString> nativeColorSchemes = listColorSchemes();
     QListIterator<QString> nativeIter(nativeColorSchemes);
     while ( nativeIter.hasNext() )
     {
-        if ( !loadColorScheme( nativeIter.next() ) )
-            failed++;
+        loadColorScheme( nativeIter.next() );
     }
-
-    if ( failed > 0 )
-        qDebug() << "failed to load " << failed << " color schemes.";
 
     _haveLoadedAll = true;
 }
@@ -528,18 +513,6 @@ QList<const ColorScheme*> ColorSchemeManager::allColorSchemes()
 
     return _colorSchemes.values();
 }
-#if 0
-void ColorSchemeManager::addColorScheme(ColorScheme* scheme)
-{
-    _colorSchemes.insert(scheme->name(),scheme);
-
-    // save changes to disk
-    QString path = KGlobal::dirs()->saveLocation("data","konsole/") + scheme->name() + ".colorscheme";
-    KConfig config(path , KConfig::NoGlobals);
-
-    scheme->write(config);
-}
-#endif
 
 bool ColorSchemeManager::loadCustomColorScheme(const QString& path)
 {
@@ -569,7 +542,6 @@ bool ColorSchemeManager::loadColorScheme(const QString& filePath)
 
     if (scheme->name().isEmpty())
     {
-        //qDebug() << "Color scheme in" << filePath << "does not have a valid name and was not loaded.";
         delete scheme;
         return false;
     }
@@ -580,9 +552,6 @@ bool ColorSchemeManager::loadColorScheme(const QString& filePath)
     }
     else
     {
-        /*qDebug() << "color scheme with name" << schemeName << "has already been" <<
-            "found, ignoring.";*/
-
         delete scheme;
     }
 
@@ -625,13 +594,11 @@ bool ColorSchemeManager::deleteColorScheme(const QString& name)
     }
     else
     {
-        //qDebug() << "Failed to remove color scheme -" << path;
         return false;
     }
 }
 QString ColorSchemeManager::findColorSchemePath(const QString& name) const
 {
-//    QString path = KStandardDirs::locate("data","konsole/"+name+".colorscheme");
     const QStringList dirs = get_color_schemes_dirs();
     if ( dirs.isEmpty() )
         return QString();
@@ -641,7 +608,6 @@ QString ColorSchemeManager::findColorSchemePath(const QString& name) const
     if ( !path.isEmpty() )
         return path;
 
-    //path = KStandardDirs::locate("data","konsole/"+name+".schema");
     path = dir + QLatin1Char('/')+ name + QLatin1String(".schema");
 
     return path;
@@ -661,8 +627,6 @@ const ColorScheme* ColorSchemeManager::findColorScheme(const QString& name)
         {
             return findColorScheme(name);
         }
-
-        //qDebug() << "Could not find color scheme - " << name;
 
         return nullptr;
     }
