@@ -20,12 +20,10 @@
 #ifndef SCREENWINDOW_H
 #define SCREENWINDOW_H
 
-// Qt
 #include <QObject>
 #include <QPoint>
 #include <QRect>
 
-// Konsole
 #include "Character.h"
 #include "KeyboardTranslator.h"
 
@@ -141,6 +139,7 @@ public:
      * Clears the current selection
      */
     void clearSelection();
+    bool isClearSelection();
 
     /** Sets the number of lines in the window */
     void setWindowLines(int lines);
@@ -163,6 +162,11 @@ public:
      */
     QPoint cursorPosition() const;
 
+    int getCursorX() const;
+    int getCursorY() const;
+    void setCursorX(int x);
+    void setCursorY(int y);
+    
     /**
      * Convenience method. Returns true if the window is currently at the bottom
      * of the screen.
@@ -216,6 +220,8 @@ public:
      */
     QString selectedText( bool preserveLineBreaks ) const;
 
+    QString getScreenText(int row1, int col1, int row2, int col2, int mode);
+
 public slots:
     /**
      * Notifies the window that the contents of the associated terminal screen have changed.
@@ -243,6 +249,8 @@ signals:
     void selectionChanged();
 
     void scrollToEnd();
+
+    void handleCtrlC(void);
 
 private:
     int endWindowLine() const;

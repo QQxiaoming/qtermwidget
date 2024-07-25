@@ -19,18 +19,9 @@
     02110-1301  USA.
 */
 
-// Own
 #include "TerminalCharacterDecoder.h"
-
-// Qt
 #include <QTextStream>
-
-// KDE
-//#include <kdebug.h>
-
-// Konsole
-#include "konsole_wcwidth.h"
-
+#include "CharWidth.h"
 #include <cwctype>
 
 using namespace Konsole;
@@ -39,7 +30,6 @@ PlainTextDecoder::PlainTextDecoder()
  , _includeTrailingWhitespace(true)
  , _recordLinePositions(false)
 {
-
 }
 void PlainTextDecoder::setTrailingWhitespace(bool enable)
 {
@@ -112,7 +102,7 @@ void PlainTextDecoder::decodeLine(const Character* const characters, int count, 
     for (int i=0;i<outputCount;)
     {
         plainText.push_back( characters[i].character );
-        i += qMax(1,konsole_wcwidth(characters[i].character));
+        i += qMax(1,CharWidth::unicode_width(characters[i].character));
     }
     *_output << QString::fromStdWString(plainText);
 }
@@ -123,7 +113,6 @@ HTMLDecoder::HTMLDecoder() :
        ,_innerSpanOpen(false)
        ,_lastRendition(DEFAULT_RENDITION)
 {
-
 }
 
 void HTMLDecoder::begin(QTextStream* output)
@@ -149,7 +138,6 @@ void HTMLDecoder::end()
     *_output << QString::fromStdWString(text);
 
     _output = nullptr;
-
 }
 
 //TODO: Support for LineProperty (mainly double width , double height)
@@ -232,7 +220,6 @@ void HTMLDecoder::decodeLine(const Character* const characters, int count, LineP
         {
             text.append(L"&nbsp;"); //HTML truncates multiple spaces, so use a space marker instead
         }
-
     }
 
     //close any remaining open inner spans

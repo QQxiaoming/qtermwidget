@@ -1,0 +1,29 @@
+name: macos
+
+on:
+  push:
+    branches: [ master ]
+    tags:
+      - V**
+  pull_request:
+    branches: [ master ]
+  workflow_dispatch:
+
+jobs:
+  macos:
+    runs-on: macos-14
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Qt
+        uses: jurplel/install-qt-action@v3
+        with:
+          version: '6.5.3'
+          modules: 'qtmultimedia'
+          aqtversion: ==3.1.7
+
+      - name: Build all
+        run: |
+          qmake -makefile
+          make

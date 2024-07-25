@@ -29,11 +29,11 @@
 // Qt
 #include <QKeyEvent>
 //#include <QPointer>
+#include <QStringDecoder>
 #include <QTextStream>
 #include <QTimer>
-#include <QStringDecoder>
+#include <QStringEncoder>
 
-#include "qtermwidget_export.h"
 #include "KeyboardTranslator.h"
 
 namespace Konsole
@@ -118,12 +118,11 @@ enum
  * how long the emulation has been active/idle for and also respond to
  * a 'bell' event in different ways.
  */
-class QTERMWIDGET_EXPORT Emulation : public QObject
+class Emulation : public QObject
 {
 Q_OBJECT
 
 public:
-
   /**
    * This enum describes the available shapes for the keyboard cursor.
    * See setKeyboardCursorShape()
@@ -189,6 +188,18 @@ public:
    * @param endLine Index of last line to copy
    */
   virtual void writeToStream(TerminalCharacterDecoder* decoder,int startLine,int endLine);
+  
+  /** Returns the codec used to decode incoming characters.  See setCodec() */
+  const QStringEncoder &codec() const { return _fromUtf16; }
+  /** Sets the codec used to decode incoming characters.  */
+  void setCodec(QStringEncoder);
+
+  /**
+   * Convenience method.
+   * Returns true if the current codec used to decode incoming
+   * characters is UTF-8
+   */
+  bool utf8() const;
 
   /** TODO Document me */
   virtual char eraseChar() const;
@@ -223,6 +234,8 @@ public:
   bool programUsesMouse() const;
 
   bool programBracketedPasteMode() const;
+
+  void setEnableHandleCtrlC(bool enable) { _enableHandleCtrlC = enable; }
 
 public slots:
 
@@ -270,6 +283,8 @@ public slots:
    */
   void receiveData(const char* buffer,int len);
 
+  void dupDisplayCharacter(wchar_t cc);
+
 signals:
 
   /**
@@ -280,6 +295,8 @@ signals:
    * @param len The length of @p data in bytes
    */
   void sendData(const char* data,int len);
+
+  void dupDisplayOutput(const char* data,int len);
 
   /**
    * Requests that sending of input to the emulation
@@ -308,8 +325,9 @@ signals:
    */
   void stateSet(int state);
 
-  /** TODO Document me */
-  void zmodemDetected();
+  /** ZModem file transfer detected */
+  void zmodemSendDetected();
+  void zmodemRecvDetected();
 
 
   /**
@@ -420,6 +438,12 @@ signals:
   void flowControlKeyPressed(bool suspendKeyPressed);
 
   /**
+   * Emitted when the active screen is switched, to indicate whether the primary
+   * screen is in use.
+   */
+  void primaryScreenInUse(bool use);
+
+  /**
    * Emitted when the cursor shape or its blinking state is changed via
    * DECSCUSR sequences.
    *
@@ -429,6 +453,7 @@ signals:
   void cursorChanged(KeyboardCursorShape cursorShape, bool blinkingCursorEnabled);
 
   void handleCommandFromKeyboard(KeyboardTranslator::Command command);
+  void handleCtrlC(void);
   void outputFromKeypressEvent(void);
 
 protected:
@@ -468,8 +493,14 @@ protected:
                             // 1 = alternate      ( used by vi , emacs etc.
                             //                      scrollbars are not enabled in this mode )
 
+  //decodes an incoming C-style character stream into a unicode QString using
+  //the current text codec.  (this allows for rendering of non-ASCII characters in text files etc.)
+  QStringEncoder _fromUtf16;
+  QStringDecoder _toUtf16;
 
   const KeyboardTranslator* _keyTranslator; // the keyboard layout
+  
+  bool _enableHandleCtrlC;
 
 protected slots:
   /**
@@ -478,6 +509,9 @@ protected slots:
    * much like the Qt buffered update of widgets.
    */
   void bufferedUpdate();
+  
+  // used to emit the primaryScreenInUse(bool) signal
+  void checkScreenInUse();
 
 private slots:
 
@@ -494,7 +528,8 @@ private:
   bool _bracketedPasteMode;
   QTimer _bulkTimer1{this};
   QTimer _bulkTimer2{this};
-  QStringDecoder _toUtf16;
+  QStringEncoder _fromUtf8;
+  QByteArray dupCache;
 };
 
 }

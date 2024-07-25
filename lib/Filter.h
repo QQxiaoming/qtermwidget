@@ -27,9 +27,7 @@
 #include <QStringList>
 #include <QHash>
 #include <QRegularExpression>
-
-// Local
-#include "qtermwidget_export.h"
+#include <QColor>
 
 namespace Konsole
 {
@@ -55,7 +53,7 @@ class Character;
  * When processing the text they should create instances of Filter::HotSpot subclasses for sections of interest
  * and add them to the filter's list of hotspots using addHotSpot()
  */
-class QTERMWIDGET_EXPORT Filter : public QObject
+class Filter : public QObject
 {
 public:
     /**
@@ -98,11 +96,14 @@ public:
        int startColumn() const;
        /** Returns the column on endLine() where the hotspot area ends */
        int endColumn() const;
+
        /**
         * Returns the type of the hotspot.  This is usually used as a hint for views on how to represent
         * the hotspot graphically.  eg.  Link hotspots are typically underlined when the user mouses over them
         */
        Type type() const;
+       QColor color() const;
+       void setColor(const QColor& color);
        /**
         * Causes the an action associated with a hotspot to be triggered.
         *
@@ -111,7 +112,9 @@ public:
         * one of the object names from the actions() list.  In which case the associated
         * action should be performed.
         */
-       virtual void activate(const QString& action = QString()) = 0;
+       virtual void clickAction(void) = 0;
+       virtual QString clickActionToolTip(void) = 0;
+       virtual bool hasClickAction(void) = 0;
        /**
         * Returns a list of actions associated with the hotspot which can be used in a
         * menu or toolbar
@@ -127,8 +130,8 @@ public:
        int    _startColumn;
        int    _endLine;
        int    _endColumn;
-       Type _type;
-
+       Type   _type;
+       QColor _color;
     };
 
     /** Constructs a new filter. */
@@ -184,7 +187,7 @@ private:
  * Subclasses can reimplement newHotSpot() to return custom hotspot types when matches for the regular expression
  * are found.
  */
-class QTERMWIDGET_EXPORT RegExpFilter : public Filter
+class RegExpFilter : public Filter
 {
 public:
     /**
@@ -195,7 +198,9 @@ public:
     {
     public:
         HotSpot(int startLine, int startColumn, int endLine , int endColumn);
-        void activate(const QString& action = QString()) override;
+        void clickAction(void) override;
+        QString clickActionToolTip(void) override;
+        bool hasClickAction(void) override;
 
         /** Sets the captured texts associated with this hotspot */
         void setCapturedTexts(const QStringList& texts);
@@ -218,6 +223,11 @@ public:
     /** Returns the regular expression which the filter searches for in blocks of text */
     QRegularExpression regExp() const;
 
+    /** Sets the color used to highlight text which matches the filter's regular expression */
+    void setColor(const QColor& color) { _color = color;}
+    /** Returns the color used to highlight text which matches the filter's regular expression */
+    QColor color() const { return _color;}
+
     /**
      * Reimplemented to search the filter's text buffer for text matching regExp()
      *
@@ -236,12 +246,13 @@ protected:
 
 private:
     QRegularExpression _searchText;
+    QColor _color;
 };
 
 class FilterObject;
 
 /** A filter which matches URLs in blocks of text */
-class QTERMWIDGET_EXPORT UrlFilter : public RegExpFilter
+class UrlFilter : public RegExpFilter
 {
     Q_OBJECT
 public:
@@ -263,19 +274,22 @@ public:
          * Open a web browser at the current URL.  The url itself can be determined using
          * the capturedTexts() method.
          */
-        void activate(const QString& action = QString()) override;
+        void clickAction(void) override;
+        QString clickActionToolTip(void) override;
+        bool hasClickAction(void) override;
 
     private:
         enum UrlType
         {
             StandardUrl,
             Email,
+            FilePath,
             Unknown
         };
         UrlType urlType() const;
 
         FilterObject* _urlObject;
-
+        
         HotSpot( const HotSpot& ) = delete;
         HotSpot& operator= ( const HotSpot& ) = delete;
     };
@@ -286,29 +300,31 @@ protected:
     RegExpFilter::HotSpot* newHotSpot(int,int,int,int) override;
 
 private:
-
     static const QRegularExpression FullUrlRegExp;
     static const QRegularExpression EmailAddressRegExp;
+    static const QRegularExpression WindowsFilePathRegExp;
+    static const QRegularExpression UnixFilePathRegExp;
+    static const QRegularExpression FilePathRegExp;
 
-    // combined OR of FullUrlRegExp and EmailAddressRegExp
+    // combined OR of FullUrlRegExp and EmailAddressRegExp and FilePathRegExp
     static const QRegularExpression CompleteUrlRegExp;
+
 signals:
-    void activated(const QUrl& url, bool fromContextMenu);
+    void activated(const QUrl& url, uint32_t opcode);
 };
 
-class QTERMWIDGET_NO_EXPORT FilterObject : public QObject
+class FilterObject : public QObject
 {
     Q_OBJECT
 public:
     FilterObject(Filter::HotSpot* filter) : _filter(filter) {}
 
-    void emitActivated(const QUrl& url, bool fromContextMenu);
-public slots:
-    void activate();
+    void emitActivated(const QUrl& url, uint32_t opcode);
+
 private:
     Filter::HotSpot* _filter;
 signals:
-    void activated(const QUrl& url, bool fromContextMenu);
+    void activated(const QUrl& url, uint32_t opcode);
 };
 
 /**
@@ -328,7 +344,7 @@ signals:
  * The hotSpots() and hotSpotsAtLine() method return all of the hotspots in the text and on
  * a given line respectively.
  */
-class QTERMWIDGET_EXPORT FilterChain : protected QList<Filter*>
+class FilterChain : protected QList<Filter*>
 {
 public:
     virtual ~FilterChain();
@@ -358,11 +374,10 @@ public:
     QList<Filter::HotSpot*> hotSpots() const;
     /** Returns a list of all hotspots at the given line in all the chain's filters */
     QList<Filter::HotSpot> hotSpotsAtLine(int line) const;
-
 };
 
 /** A filter chain which processes character images from terminal displays */
-class QTERMWIDGET_NO_EXPORT TerminalImageFilterChain : public FilterChain
+class TerminalImageFilterChain : public FilterChain
 {
 public:
     TerminalImageFilterChain();

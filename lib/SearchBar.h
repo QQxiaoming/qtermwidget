@@ -26,6 +26,7 @@
 
 class SearchBar : public QWidget {
     Q_OBJECT
+
 public:
     SearchBar(QWidget* parent = nullptr);
     ~SearchBar() override;
@@ -34,6 +35,8 @@ public:
     bool useRegularExpression();
     bool matchCase();
     bool highlightAllMatches();
+    void setText(const QString &text);
+    void retranslateUi(void);
 
 public slots:
     void noMatchFound();

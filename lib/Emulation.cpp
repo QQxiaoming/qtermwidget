@@ -19,27 +19,20 @@
     02110-1301  USA.
 */
 
-// Own
 #include "Emulation.h"
 
-// System
 #include <cstdio>
 #include <cstdlib>
-#include <unistd.h>
 #include <string>
 
-// Qt
 #include <QApplication>
 #include <QClipboard>
 #include <QHash>
 #include <QKeyEvent>
-#include <QRegularExpression>
 #include <QTextStream>
 #include <QThread>
-
 #include <QTime>
 
-// Konsole
 #include "KeyboardTranslator.h"
 #include "Screen.h"
 #include "TerminalCharacterDecoder.h"
@@ -50,9 +43,10 @@ using namespace Konsole;
 Emulation::Emulation() :
   _currentScreen(nullptr),
   _keyTranslator(nullptr),
+  _enableHandleCtrlC(false),
   _usesMouse(false),
   _bracketedPasteMode(false),
-  _toUtf16(QStringConverter::Utf8)
+  _fromUtf8(QStringEncoder::Utf16)
 {
   // create screens with a default size
   _screen[0] = new Screen(40,80);
@@ -108,10 +102,17 @@ ScreenWindow* Emulation::createWindow()
 
     connect(this, &Emulation::handleCommandFromKeyboard,
             window, &ScreenWindow::handleCommandFromKeyboard);
+    connect(this, &Emulation::handleCtrlC,
+            window, &ScreenWindow::handleCtrlC);
     connect(this, &Emulation::outputFromKeypressEvent,
             window, &ScreenWindow::scrollToEnd);
 
     return window;
+}
+
+void Emulation::checkScreenInUse()
+{
+    emit primaryScreenInUse(_currentScreen == _screen[0]);
 }
 
 Emulation::~Emulation()
@@ -136,6 +137,7 @@ void Emulation::setScreen(int n)
      // tell all windows onto this emulation to switch to the newly active screen
      for(ScreenWindow* window : std::as_const(_windows))
          window->setScreen(_currentScreen);
+      checkScreenInUse();
   }
 }
 
@@ -153,6 +155,30 @@ void Emulation::setHistory(const HistoryType& t)
 const HistoryType& Emulation::history() const
 {
   return _screen[0]->getScroll();
+}
+
+void Emulation::setCodec(QStringEncoder qtc)
+{
+  if (qtc.isValid())
+     _fromUtf16 = std::move(qtc);
+  else
+    setCodec(LocaleCodec);
+
+  _toUtf16 = QStringDecoder{utf8() ? QStringConverter::Encoding::Utf8 : QStringConverter::Encoding::System};
+  emit useUtf8Request(utf8());
+}
+
+bool Emulation::utf8() const
+{
+  const auto enc = QStringConverter::encodingForName(_fromUtf16.name());
+  return enc && enc.value() == QStringConverter::Encoding::Utf8;
+}
+
+void Emulation::setCodec(EmulationCodec codec)
+{
+  setCodec( QStringEncoder{codec == Utf8Codec ?
+              QStringConverter::Encoding::Utf8 :
+              QStringConverter::Encoding::System} );
 }
 
 void Emulation::setKeyBindings(const QString& name)
@@ -224,13 +250,12 @@ void Emulation::receiveData(const char* text, int length)
      * U+10FFFF
      * https://unicodebook.readthedocs.io/unicode_encodings.html#surrogates
      */
-    QByteArray ba(text, length);
-    QString str = _toUtf16(ba);
-    std::wstring unicodeText = str.toStdWString();
+    QString utf16Text = _toUtf16(QByteArray::fromRawData(text, length));
+    std::wstring unicodeText = utf16Text.toStdWString();
 
     //send characters to terminal emulator
-    for (size_t i=0;i<unicodeText.length();i++)
-        receiveChar(unicodeText[i]);
+    for (wchar_t i : unicodeText)
+        receiveChar(i);
 
     //look for z-modem indicator
     //-- someone who understands more about z-modems that I do may be able to move
@@ -239,9 +264,37 @@ void Emulation::receiveData(const char* text, int length)
     {
         if (text[i] == '\030')
         {
-            if ((length-i-1 > 3) && (strncmp(text+i+1, "B00", 3) == 0))
-                emit zmodemDetected();
+            // ZRQINIT 0 Request receive init
+            if ((length-i-1 > 3) && (strncmp(text+i+1, "B00", 3) == 0)) {
+                emit zmodemSendDetected();
+            }
+            // ZRINIT	1	 Receive init
+            if ((length-i-1 > 5) && (strncmp(text+i+1, "B0100", 5) == 0)) {
+                emit zmodemRecvDetected();
+            }
         }
+    }
+}
+  
+void Emulation::dupDisplayCharacter(wchar_t cc)
+{
+    if(cc == L'\n') {
+        dupCache.append(L'\n');
+        PlainTextDecoder decoder;
+        QString lineText;
+        QTextStream stream(&lineText);
+        decoder.begin(&stream);
+        Character *data = new Character[dupCache.size()];
+        for(int j=0;j<dupCache.size();j++) {
+            data[j] = Character(dupCache.at(j));
+        }
+        decoder.decodeLine(data,dupCache.size(),0);
+        decoder.end();
+        delete[] data;
+        emit dupDisplayOutput(lineText.toUtf8().constData(),lineText.toUtf8().length());
+        dupCache.clear();
+    } else {
+        dupCache.append(cc);
     }
 }
 
@@ -289,7 +342,9 @@ void Emulation::receiveData(const char* text, int length)
     if (s[i] == '\030')
     {
       if ((len-i-1 > 3) && (strncmp(s+i+1, "B00", 3) == 0))
-          emit zmodemDetected();
+          emit zmodemSendDetected();
+      if ((length-i-1 > 5) && (strncmp(text+i+1, "B0100", 5) == 0))
+          emit zmodemRecvDetected();
     }
   }
 }*/
@@ -323,13 +378,13 @@ void Emulation::bufferedUpdate()
     static const int BULK_TIMEOUT1 = 10;
     static const int BULK_TIMEOUT2 = 40;
 
-   _bulkTimer1.setSingleShot(true);
-   _bulkTimer1.start(BULK_TIMEOUT1);
-   if (!_bulkTimer2.isActive())
-   {
-      _bulkTimer2.setSingleShot(true);
-      _bulkTimer2.start(BULK_TIMEOUT2);
-   }
+    _bulkTimer1.setSingleShot(true);
+    _bulkTimer1.start(BULK_TIMEOUT1);
+    if (!_bulkTimer2.isActive())
+    {
+        _bulkTimer2.setSingleShot(true);
+        _bulkTimer2.start(BULK_TIMEOUT2);
+    }
 }
 
 char Emulation::eraseChar() const

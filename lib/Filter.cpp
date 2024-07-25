@@ -34,14 +34,11 @@
 #include <QFile>
 #include <QDesktopServices>
 #include <QUrl>
+#include <QDir>
 
-// KDE
-//#include <KLocale>
-//#include <KRun>
-
-// Konsole
 #include "TerminalCharacterDecoder.h"
-#include "konsole_wcwidth.h"
+#include "CharWidth.h"
+#include "qtermwidget.h"
 
 using namespace Konsole;
 
@@ -221,7 +218,7 @@ void Filter::getLineColumn(int position , int& startLine , int& startColumn)
         if ( _linePositions->value(i) <= position && position < nextLine )
         {
             startLine = i;
-            startColumn = string_width(buffer()->mid(_linePositions->value(i),position - _linePositions->value(i)).toStdWString());
+            startColumn = CharWidth::string_unicode_width(buffer()->mid(_linePositions->value(i),position - _linePositions->value(i)));
             return;
         }
     }
@@ -284,6 +281,7 @@ Filter::HotSpot::HotSpot(int startLine , int startColumn , int endLine , int end
     , _endLine(endLine)
     , _endColumn(endColumn)
     , _type(NotSpecified)
+    , _color(Qt::red)
 {
 }
 QList<QAction*> Filter::HotSpot::actions()
@@ -310,9 +308,17 @@ Filter::HotSpot::Type Filter::HotSpot::type() const
 {
     return _type;
 }
+QColor Filter::HotSpot::color() const
+{
+    return _color;
+}
 void Filter::HotSpot::setType(Type type)
 {
     _type = type;
+}
+void Filter::HotSpot::setColor(const QColor& color)
+{
+    _color = color;
 }
 
 RegExpFilter::RegExpFilter()
@@ -325,8 +331,18 @@ RegExpFilter::HotSpot::HotSpot(int startLine,int startColumn,int endLine,int end
     setType(Marker);
 }
 
-void RegExpFilter::HotSpot::activate(const QString&)
+void RegExpFilter::HotSpot::clickAction(void)
 {
+}
+
+QString RegExpFilter::HotSpot::clickActionToolTip(void) 
+{
+    return QString();
+}
+
+bool RegExpFilter::HotSpot::hasClickAction(void)
+{
+    return false;
 }
 
 void RegExpFilter::HotSpot::setCapturedTexts(const QStringList& texts)
@@ -362,11 +378,10 @@ void RegExpFilter::process()
     auto match = _searchText.match(emptyString, 0, 
         QRegularExpression::NormalMatch, QRegularExpression::AnchorAtOffsetMatchOption); 
     if (match.hasMatch())
-    {
         return;
-    }
 
     match = _searchText.match(*text);
+
     while (match.hasMatch()) {
         int startLine = 0;
         int endLine = 0;
@@ -399,8 +414,10 @@ void RegExpFilter::process()
 RegExpFilter::HotSpot* RegExpFilter::newHotSpot(int startLine,int startColumn,
                                                 int endLine,int endColumn)
 {
-    return new RegExpFilter::HotSpot(startLine,startColumn,
+    HotSpot *spot = new RegExpFilter::HotSpot(startLine,startColumn,
                                                   endLine,endColumn);
+    spot->setColor(color());                                      
+    return spot;
 }
 RegExpFilter::HotSpot* UrlFilter::newHotSpot(int startLine,int startColumn,int endLine,
                                                     int endColumn)
@@ -426,40 +443,62 @@ UrlFilter::HotSpot::UrlType UrlFilter::HotSpot::urlType() const
         return StandardUrl;
     else if ( EmailAddressRegExp.match(url).hasMatch() )
         return Email;
+    else if ( FilePathRegExp.match(url).hasMatch() )
+        return FilePath;
     else
         return Unknown;
 }
 
-void UrlFilter::HotSpot::activate(const QString& actionName)
+bool UrlFilter::HotSpot::hasClickAction(void)
+{
+    const UrlType kind = urlType();
+    if ( kind == StandardUrl ) {
+        return true;
+    } else if ( kind == FilePath ) {
+        return true;
+    }
+    return false;
+}
+
+QString UrlFilter::HotSpot::clickActionToolTip(void) 
+{
+    const UrlType kind = urlType();
+    if ( kind == StandardUrl ) {
+        return tr("Follow link (ctrl + click)");
+    } else if ( kind == FilePath ) {
+        return tr("Follow path (ctrl + click)");
+    }
+    return QString();
+}
+
+void UrlFilter::HotSpot::clickAction(void)
 {
     QString url = capturedTexts().constFirst();
-
     const UrlType kind = urlType();
 
-    if ( actionName == QLatin1String("copy-action") )
-    {
-        QApplication::clipboard()->setText(url);
+    if ( kind == StandardUrl ) {
+        // if the URL path does not include the protocol ( eg. "www.kde.org" ) then
+        // prepend http:// ( eg. "www.kde.org" --> "http://www.kde.org" )
+        if (!url.contains(QLatin1String("://"))) {
+            url.prepend(QLatin1String("http://"));
+        }
+    } else if ( kind == FilePath ) {
+        url.replace(QLatin1Char('\\'),QLatin1Char('/'));
+        url.replace(QLatin1Char('~'),QDir::homePath());
+        if(url.startsWith(QLatin1String("/"))) {
+            url.prepend(QLatin1String("file://"));
+        } else if(url.startsWith(QLatin1String("."))) {
+            url.prepend(QLatin1String("relative:"));
+        } else if(url.startsWith(QLatin1String(".."))) {
+            url.prepend(QLatin1String("relative:"));
+        } else {
+            url.prepend(QLatin1String("file:///"));
+        }
+    } else {
         return;
     }
 
-    if ( actionName.isEmpty() || actionName == QLatin1String("open-action") || actionName == QLatin1String("click-action") )
-    {
-        if ( kind == StandardUrl )
-        {
-            // if the URL path does not include the protocol ( eg. "www.kde.org" ) then
-            // prepend http:// ( eg. "www.kde.org" --> "http://www.kde.org" )
-            if (!url.contains(QLatin1String("://")))
-            {
-                url.prepend(QLatin1String("http://"));
-            }
-        }
-        else if ( kind == Email )
-        {
-            url.prepend(QLatin1String("mailto:"));
-        }
-
-        _urlObject->emitActivated(QUrl(url, QUrl::StrictMode), actionName != QLatin1String("click-action"));
-    }
+    _urlObject->emitActivated(QUrl(url, QUrl::StrictMode), QTermWidget::OpenFromClick);
 }
 
 // Note:  Altering these regular expressions can have a major effect on the performance of the filters
@@ -474,10 +513,21 @@ const QRegularExpression UrlFilter::FullUrlRegExp(QLatin1String("(www\\.(?!\\.)|
 // email address:
 // [word chars, dots or dashes]@[word chars, dots or dashes].[word chars]
 const QRegularExpression UrlFilter::EmailAddressRegExp(QLatin1String("\\b(\\w|\\.|-)+@(\\w|\\.|-)+\\.\\w+\\b"));
-
+// file path:
+// '[drive letter]:\' '\\' '.\' or '..\' followed by anything other than whitespaces, <, >, ' or ", and ends before whitespaces, <, >, ', ", ], !, comma and dot
+const QRegularExpression UrlFilter::WindowsFilePathRegExp(QLatin1String("([a-zA-Z]:\\\\|\\\\\\\\|\\.\\\\|\\.\\.\\\\)[^\\s<>'\"]+[^!,\\.\\s<>'\"\\]]"));
+// '/' '~/'  './' or '../' followed by anything other than whitespaces, <, >, ' or ", and ends before whitespaces, <, >, ', ", ], !, comma and dot
+const QRegularExpression UrlFilter::UnixFilePathRegExp(QLatin1String("((\\./|~/|\\.\\./)[^\\s<>'\"]+|/[^\\s<>'\"]+)[^!,\\.\\s<>'\"\\]]"));
+const QRegularExpression UrlFilter::FilePathRegExp(QLatin1String("(")+
+                                            WindowsFilePathRegExp.pattern()+QLatin1Char('|')+
+                                            UnixFilePathRegExp.pattern()+
+                                           QLatin1Char(')'));
 // matches full url or email address
-const QRegularExpression UrlFilter::CompleteUrlRegExp(QLatin1Char('(')+FullUrlRegExp.pattern()+QLatin1Char('|')+
-                                            EmailAddressRegExp.pattern()+QLatin1Char(')'));
+const QRegularExpression UrlFilter::CompleteUrlRegExp(QLatin1Char('(')+
+                                            FullUrlRegExp.pattern()+QLatin1Char('|')+
+                                            EmailAddressRegExp.pattern()+QLatin1Char('|')+
+                                            FilePathRegExp.pattern()+
+                                           QLatin1Char(')'));
 
 UrlFilter::UrlFilter()
 {
@@ -489,14 +539,9 @@ UrlFilter::HotSpot::~HotSpot()
     delete _urlObject;
 }
 
-void FilterObject::emitActivated(const QUrl& url, bool fromContextMenu)
+void FilterObject::emitActivated(const QUrl& url, uint32_t opcode)
 {
-    emit activated(url, fromContextMenu);
-}
-
-void FilterObject::activate()
-{
-    _filter->activate(sender()->objectName());
+    emit activated(url, opcode);
 }
 
 FilterObject* UrlFilter::HotSpot::getUrlObject() const
@@ -510,33 +555,89 @@ QList<QAction*> UrlFilter::HotSpot::actions()
 
     const UrlType kind = urlType();
 
-    QAction* openAction = new QAction(_urlObject);
-    QAction* copyAction = new QAction(_urlObject);;
+    Q_ASSERT( kind == StandardUrl || kind == Email || kind == FilePath );
 
-    Q_ASSERT( kind == StandardUrl || kind == Email );
-
-    if ( kind == StandardUrl )
-    {
-        openAction->setText(QObject::tr("Open Link"));
-        copyAction->setText(QObject::tr("Copy Link Address"));
+    if ( kind == StandardUrl ) {
+        QAction* openLinkAction = new QAction(_urlObject);
+        QAction* copyLinkAction = new QAction(_urlObject);
+        openLinkAction->setText(QObject::tr("Open Link"));
+        copyLinkAction->setText(QObject::tr("Copy Link Address"));
+        QObject::connect( openLinkAction , &QAction::triggered , _urlObject , [&](void) {    
+            QString url = capturedTexts().constFirst();
+            // if the URL path does not include the protocol ( eg. "www.kde.org" ) then
+            // prepend http:// ( eg. "www.kde.org" --> "http://www.kde.org" )
+            if (!url.contains(QLatin1String("://"))) {
+                url.prepend(QLatin1String("http://"));
+            }
+            _urlObject->emitActivated(QUrl(url, QUrl::StrictMode), QTermWidget::OpenFromContextMenu);
+        });
+        QObject::connect( copyLinkAction , &QAction::triggered , _urlObject , [&](void) {    
+            QString url = capturedTexts().constFirst();
+            QApplication::clipboard()->setText(url);
+        });
+        list << openLinkAction;
+        list << copyLinkAction;
+    } else if ( kind == Email ) {
+        QAction* sendEmailAction = new QAction(_urlObject);
+        QAction* copyEmailAction = new QAction(_urlObject);
+        sendEmailAction->setText(QObject::tr("Send Email To..."));
+        copyEmailAction->setText(QObject::tr("Copy Email Address"));
+        QObject::connect( sendEmailAction , &QAction::triggered , _urlObject ,  [&](void) {    
+            QString url = capturedTexts().constFirst();
+            url.prepend(QLatin1String("mailto:"));
+            _urlObject->emitActivated(QUrl(url, QUrl::StrictMode), QTermWidget::OpenFromContextMenu);
+        });
+        QObject::connect( copyEmailAction , &QAction::triggered , _urlObject , [&](void) {    
+            QString url = capturedTexts().constFirst();
+            QApplication::clipboard()->setText(url);
+        });
+        list << sendEmailAction;
+        list << copyEmailAction;
+    } else if ( kind == FilePath ) {
+        QAction* openPathAction = new QAction(_urlObject);
+        QAction* openContainingPathAction = new QAction(_urlObject);
+        QAction* copyPathAction = new QAction(_urlObject);
+        openPathAction->setText(QObject::tr("Open Path"));
+        openContainingPathAction->setText(QObject::tr("Open Containing Folder"));
+        copyPathAction->setText(QObject::tr("Copy Path"));
+        QObject::connect( openPathAction , &QAction::triggered , _urlObject ,  [&](void) {    
+            QString url = capturedTexts().constFirst();
+            url.replace(QLatin1Char('\\'),QLatin1Char('/'));
+            url.replace(QLatin1Char('~'),QDir::homePath());
+            if(url.startsWith(QLatin1String("/"))) {
+                url.prepend(QLatin1String("file://"));
+            } else if(url.startsWith(QLatin1String("."))) {
+                url.prepend(QLatin1String("relative:"));
+            } else if(url.startsWith(QLatin1String(".."))) {
+                url.prepend(QLatin1String("relative:"));
+            } else {
+                url.prepend(QLatin1String("file:///"));
+            }
+            _urlObject->emitActivated(QUrl(url, QUrl::StrictMode), QTermWidget::OpenFromContextMenu);
+        });
+        QObject::connect( openContainingPathAction , &QAction::triggered , _urlObject , [&](void) {    
+            QString url = capturedTexts().constFirst();
+            url.replace(QLatin1Char('\\'),QLatin1Char('/'));
+            url.replace(QLatin1Char('~'),QDir::homePath());
+            if(url.startsWith(QLatin1String("/"))) {
+                url.prepend(QLatin1String("file://"));
+            } else if(url.startsWith(QLatin1String("."))) {
+                url.prepend(QLatin1String("relative:"));
+            } else if(url.startsWith(QLatin1String(".."))) {
+                url.prepend(QLatin1String("relative:"));
+            } else {
+                url.prepend(QLatin1String("file:///"));
+            }
+            _urlObject->emitActivated(QUrl(url, QUrl::StrictMode), QTermWidget::OpenContainingFromContextMenu);
+        });
+        QObject::connect( copyPathAction , &QAction::triggered , _urlObject , [&](void) {    
+            QString url = capturedTexts().constFirst();
+            QApplication::clipboard()->setText(url);
+        });
+        list << openPathAction;
+        list << openContainingPathAction;
+        list << copyPathAction;
     }
-    else if ( kind == Email )
-    {
-        openAction->setText(QObject::tr("Send Email To..."));
-        copyAction->setText(QObject::tr("Copy Email Address"));
-    }
-
-    // object names are set here so that the hotspot performs the
-    // correct action when activated() is called with the triggered
-    // action passed as a parameter.
-    openAction->setObjectName( QLatin1String("open-action" ));
-    copyAction->setObjectName( QLatin1String("copy-action" ));
-
-    QObject::connect( openAction , &QAction::triggered , _urlObject , &FilterObject::activate );
-    QObject::connect( copyAction , &QAction::triggered , _urlObject , &FilterObject::activate );
-
-    list << openAction;
-    list << copyAction;
 
     return list;
 }
