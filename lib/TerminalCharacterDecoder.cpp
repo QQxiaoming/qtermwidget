@@ -1,45 +1,34 @@
 /*
-    This file is part of Konsole, an X terminal.
-
-    Copyright 2006-2008 by Robert Knight <robertknight@gmail.com>
-
-    This program is free software; you can redistribute it and/or modify
-    it under the terms of the GNU Lesser General Public License as published by
-    the Free Software Foundation; either version 2 of the License, or
-    (at your option) any later version.
-
-    This program is distributed in the hope that it will be useful,
-    but WITHOUT ANY WARRANTY; without even the implied warranty of
-    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU General Public License for more details.
-
-    You should have received a copy of the GNU Lesser General Public License
-    along with this program; if not, write to the Free Software
-    Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA
-    02110-1301  USA.
+ This file is part of Konsole, an X terminal.
+ 
+ Copyright 2006-2008 by Robert Knight <robertknight@gmail.com>
+ 
+ This program is free software; you can redistribute it and/or modify
+ it under the terms of the GNU Lesser General Public License as published by
+ the Free Software Foundation; either version 2 of the License, or
+ (at your option) any later version.
+ 
+ This program is distributed in the hope that it will be useful,
+ but WITHOUT ANY WARRANTY; without even the implied warranty of
+ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ GNU General Public License for more details.
+ 
+ You should have received a copy of the GNU Lesser General Public License
+ along with this program; if not, write to the Free Software
+ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA
+ 02110-1301  USA.
 */
 
-// Own
 #include "TerminalCharacterDecoder.h"
-
-// Qt
 #include <QTextStream>
-
-// KDE
-//#include <kdebug.h>
-
-// Konsole
-#include "konsole_wcwidth.h"
-
+#include "CharWidth.h"
 #include <cwctype>
 
-using namespace Konsole;
 PlainTextDecoder::PlainTextDecoder()
  : _output(nullptr)
  , _includeTrailingWhitespace(true)
  , _recordLinePositions(false)
 {
-
 }
 void PlainTextDecoder::setTrailingWhitespace(bool enable)
 {
@@ -112,7 +101,7 @@ void PlainTextDecoder::decodeLine(const Character* const characters, int count, 
     for (int i=0;i<outputCount;)
     {
         plainText.push_back( characters[i].character );
-        i += qMax(1,konsole_wcwidth(characters[i].character));
+        i += qMax(1,CharWidth::unicode_width(characters[i].character));
     }
     *_output << QString::fromStdWString(plainText);
 }
@@ -123,7 +112,6 @@ HTMLDecoder::HTMLDecoder() :
        ,_innerSpanOpen(false)
        ,_lastRendition(DEFAULT_RENDITION)
 {
-
 }
 
 void HTMLDecoder::begin(QTextStream* output)
@@ -149,7 +137,6 @@ void HTMLDecoder::end()
     *_output << QString::fromStdWString(text);
 
     _output = nullptr;
-
 }
 
 //TODO: Support for LineProperty (mainly double width , double height)
@@ -232,7 +219,6 @@ void HTMLDecoder::decodeLine(const Character* const characters, int count, LineP
         {
             text.append(L"&nbsp;"); //HTML truncates multiple spaces, so use a space marker instead
         }
-
     }
 
     //close any remaining open inner spans

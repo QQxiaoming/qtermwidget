@@ -1,41 +1,34 @@
 /*
-    Copyright 2007-2008 by Robert Knight <robertknight@gmail.com>
-
-    This program is free software; you can redistribute it and/or modify
-    it under the terms of the GNU General Public License as published by
-    the Free Software Foundation; either version 2 of the License, or
-    (at your option) any later version.
-
-    This program is distributed in the hope that it will be useful,
-    but WITHOUT ANY WARRANTY; without even the implied warranty of
-    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU General Public License for more details.
-
-    You should have received a copy of the GNU General Public License
-    along with this program; if not, write to the Free Software
-    Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA
-    02110-1301  USA.
+ Copyright 2007-2008 by Robert Knight <robertknight@gmail.com>
+ 
+ This program is free software; you can redistribute it and/or modify
+ it under the terms of the GNU General Public License as published by
+ the Free Software Foundation; either version 2 of the License, or
+ (at your option) any later version.
+ 
+ This program is distributed in the hope that it will be useful,
+ but WITHOUT ANY WARRANTY; without even the implied warranty of
+ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ GNU General Public License for more details.
+ 
+ You should have received a copy of the GNU General Public License
+ along with this program; if not, write to the Free Software
+ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA
+ 02110-1301  USA.
 */
 
 #ifndef FILTER_H
 #define FILTER_H
 
-// Qt
 #include <QAction>
 #include <QList>
 #include <QObject>
 #include <QStringList>
 #include <QHash>
 #include <QRegularExpression>
+#include <QColor>
 
-// Local
-#include "qtermwidget_export.h"
-
-namespace Konsole
-{
-
-typedef unsigned char LineProperty;
-class Character;
+#include "Character.h"
 
 /**
  * A filter processes blocks of text looking for certain patterns (such as URLs or keywords from a list)
@@ -55,8 +48,9 @@ class Character;
  * When processing the text they should create instances of Filter::HotSpot subclasses for sections of interest
  * and add them to the filter's list of hotspots using addHotSpot()
  */
-class QTERMWIDGET_EXPORT Filter : public QObject
+class Filter : public QObject
 {
+    Q_OBJECT
 public:
     /**
     * Represents an area of text which matched the pattern a particular filter has been looking for.
@@ -70,65 +64,68 @@ public:
     * Hotspots may have more than one action, in which case the list of actions can be obtained using the
     * actions() method.  These actions may then be displayed in a popup menu or toolbar for example.
     */
-    class HotSpot
-    {
+    class HotSpot {
     public:
-       /**
-        * Constructs a new hotspot which covers the area from (@p startLine,@p startColumn) to (@p endLine,@p endColumn)
-        * in a block of text.
-        */
-       HotSpot(int startLine , int startColumn , int endLine , int endColumn);
-       virtual ~HotSpot();
+        /**
+            * Constructs a new hotspot which covers the area from (@p startLine,@p startColumn) to (@p endLine,@p endColumn)
+            * in a block of text.
+            */
+        HotSpot(int startLine , int startColumn , int endLine , int endColumn);
+        virtual ~HotSpot();
 
-       enum Type
-       {
+        enum Type {
             // the type of the hotspot is not specified
             NotSpecified,
             // this hotspot represents a clickable link
             Link,
             // this hotspot represents a marker
             Marker
-       };
+        };
 
-       /** Returns the line when the hotspot area starts */
-       int startLine() const;
-       /** Returns the line where the hotspot area ends */
-       int endLine() const;
-       /** Returns the column on startLine() where the hotspot area starts */
-       int startColumn() const;
-       /** Returns the column on endLine() where the hotspot area ends */
-       int endColumn() const;
-       /**
-        * Returns the type of the hotspot.  This is usually used as a hint for views on how to represent
-        * the hotspot graphically.  eg.  Link hotspots are typically underlined when the user mouses over them
-        */
-       Type type() const;
-       /**
-        * Causes the an action associated with a hotspot to be triggered.
-        *
-        * @param action The action to trigger.  This is
-        * typically empty ( in which case the default action should be performed ) or
-        * one of the object names from the actions() list.  In which case the associated
-        * action should be performed.
-        */
-       virtual void activate(const QString& action = QString()) = 0;
-       /**
-        * Returns a list of actions associated with the hotspot which can be used in a
-        * menu or toolbar
-        */
-       virtual QList<QAction*> actions();
+        /** Returns the line when the hotspot area starts */
+        int startLine() const;
+        /** Returns the line where the hotspot area ends */
+        int endLine() const;
+        /** Returns the column on startLine() where the hotspot area starts */
+        int startColumn() const;
+        /** Returns the column on endLine() where the hotspot area ends */
+        int endColumn() const;
+
+        /**
+            * Returns the type of the hotspot.  This is usually used as a hint for views on how to represent
+            * the hotspot graphically.  eg.  Link hotspots are typically underlined when the user mouses over them
+            */
+        Type type() const;
+        QColor color() const;
+        void setColor(const QColor& color);
+        /**
+            * Causes the an action associated with a hotspot to be triggered.
+            *
+            * @param action The action to trigger.  This is
+            * typically empty ( in which case the default action should be performed ) or
+            * one of the object names from the actions() list.  In which case the associated
+            * action should be performed.
+            */
+        virtual void clickAction(void) = 0;
+        virtual QString clickActionToolTip(void) = 0;
+        virtual bool hasClickAction(void) = 0;
+        /**
+            * Returns a list of actions associated with the hotspot which can be used in a
+            * menu or toolbar
+            */
+        virtual QList<QAction*> actions();
 
     protected:
-       /** Sets the type of a hotspot.  This should only be set once */
-       void setType(Type type);
+        /** Sets the type of a hotspot.  This should only be set once */
+        void setType(Type type);
 
     private:
-       int    _startLine;
-       int    _startColumn;
-       int    _endLine;
-       int    _endColumn;
-       Type _type;
-
+        int    _startLine;
+        int    _startColumn;
+        int    _endLine;
+        int    _endColumn;
+        Type   _type;
+        QColor _color;
     };
 
     /** Constructs a new filter. */
@@ -173,8 +170,8 @@ private:
     QMultiHash<int,HotSpot*> _hotspots;
     QList<HotSpot*> _hotspotList;
 
-    const QList<int>* _linePositions;
-    const QString* _buffer;
+    const QList<int>* _linePositions = nullptr;
+    const QString* _buffer = nullptr;
 };
 
 /**
@@ -184,18 +181,20 @@ private:
  * Subclasses can reimplement newHotSpot() to return custom hotspot types when matches for the regular expression
  * are found.
  */
-class QTERMWIDGET_EXPORT RegExpFilter : public Filter
+class RegExpFilter : public Filter
 {
+    Q_OBJECT
 public:
     /**
      * Type of hotspot created by RegExpFilter.  The capturedTexts() method can be used to find the text
      * matched by the filter's regular expression.
      */
-    class HotSpot : public Filter::HotSpot
-    {
+    class HotSpot : public Filter::HotSpot {
     public:
         HotSpot(int startLine, int startColumn, int endLine , int endColumn);
-        void activate(const QString& action = QString()) override;
+        void clickAction(void) override;
+        QString clickActionToolTip(void) override;
+        bool hasClickAction(void) override;
 
         /** Sets the captured texts associated with this hotspot */
         void setCapturedTexts(const QStringList& texts);
@@ -218,6 +217,11 @@ public:
     /** Returns the regular expression which the filter searches for in blocks of text */
     QRegularExpression regExp() const;
 
+    /** Sets the color used to highlight text which matches the filter's regular expression */
+    void setColor(const QColor& color) { _color = color;}
+    /** Returns the color used to highlight text which matches the filter's regular expression */
+    QColor color() const { return _color;}
+
     /**
      * Reimplemented to search the filter's text buffer for text matching regExp()
      *
@@ -236,12 +240,13 @@ protected:
 
 private:
     QRegularExpression _searchText;
+    QColor _color;
 };
 
 class FilterObject;
 
 /** A filter which matches URLs in blocks of text */
-class QTERMWIDGET_EXPORT UrlFilter : public RegExpFilter
+class UrlFilter : public RegExpFilter
 {
     Q_OBJECT
 public:
@@ -249,8 +254,7 @@ public:
      * Hotspot type created by UrlFilter instances.  The activate() method opens a web browser
      * at the given URL when called.
      */
-    class HotSpot : public RegExpFilter::HotSpot
-    {
+    class HotSpot : public RegExpFilter::HotSpot {
     public:
         HotSpot(int startLine,int startColumn,int endLine,int endColumn);
         ~HotSpot() override;
@@ -263,19 +267,21 @@ public:
          * Open a web browser at the current URL.  The url itself can be determined using
          * the capturedTexts() method.
          */
-        void activate(const QString& action = QString()) override;
+        void clickAction(void) override;
+        QString clickActionToolTip(void) override;
+        bool hasClickAction(void) override;
 
     private:
-        enum UrlType
-        {
+        enum UrlType {
             StandardUrl,
             Email,
+            FilePath,
             Unknown
         };
         UrlType urlType() const;
 
         FilterObject* _urlObject;
-
+        
         HotSpot( const HotSpot& ) = delete;
         HotSpot& operator= ( const HotSpot& ) = delete;
     };
@@ -286,29 +292,31 @@ protected:
     RegExpFilter::HotSpot* newHotSpot(int,int,int,int) override;
 
 private:
-
     static const QRegularExpression FullUrlRegExp;
     static const QRegularExpression EmailAddressRegExp;
+    static const QRegularExpression WindowsFilePathRegExp;
+    static const QRegularExpression UnixFilePathRegExp;
+    static const QRegularExpression FilePathRegExp;
 
-    // combined OR of FullUrlRegExp and EmailAddressRegExp
+    // combined OR of FullUrlRegExp and EmailAddressRegExp and FilePathRegExp
     static const QRegularExpression CompleteUrlRegExp;
+
 signals:
-    void activated(const QUrl& url, bool fromContextMenu);
+    void activated(const QUrl& url, uint32_t opcode);
 };
 
-class QTERMWIDGET_NO_EXPORT FilterObject : public QObject
+class FilterObject : public QObject
 {
     Q_OBJECT
 public:
     FilterObject(Filter::HotSpot* filter) : _filter(filter) {}
 
-    void emitActivated(const QUrl& url, bool fromContextMenu);
-public slots:
-    void activate();
+    void emitActivated(const QUrl& url, uint32_t opcode);
+
 private:
     Filter::HotSpot* _filter;
 signals:
-    void activated(const QUrl& url, bool fromContextMenu);
+    void activated(const QUrl& url, uint32_t opcode);
 };
 
 /**
@@ -328,7 +336,7 @@ signals:
  * The hotSpots() and hotSpotsAtLine() method return all of the hotspots in the text and on
  * a given line respectively.
  */
-class QTERMWIDGET_EXPORT FilterChain : protected QList<Filter*>
+class FilterChain : protected QList<Filter*>
 {
 public:
     virtual ~FilterChain();
@@ -358,11 +366,10 @@ public:
     QList<Filter::HotSpot*> hotSpots() const;
     /** Returns a list of all hotspots at the given line in all the chain's filters */
     QList<Filter::HotSpot> hotSpotsAtLine(int line) const;
-
 };
 
 /** A filter chain which processes character images from terminal displays */
-class QTERMWIDGET_NO_EXPORT TerminalImageFilterChain : public FilterChain
+class TerminalImageFilterChain : public FilterChain
 {
 public:
     TerminalImageFilterChain();
@@ -383,9 +390,5 @@ private:
     QString* _buffer;
     QList<int>* _linePositions;
 };
-
-}
-
-typedef Konsole::Filter Filter;
 
 #endif //FILTER_H

@@ -1,43 +1,34 @@
 /*
-    This source file is part of Konsole, a terminal emulator.
+ This source file is part of Konsole, a terminal emulator.
 
-    Copyright 2007-2008 by Robert Knight <robertknight@gmail.com>
+ Copyright 2007-2008 by Robert Knight <robertknight@gmail.com>
 
-    This program is free software; you can redistribute it and/or modify
-    it under the terms of the GNU General Public License as published by
-    the Free Software Foundation; either version 2 of the License, or
-    (at your option) any later version.
+ This program is free software; you can redistribute it and/or modify
+ it under the terms of the GNU General Public License as published by
+ the Free Software Foundation; either version 2 of the License, or
+ (at your option) any later version.
 
-    This program is distributed in the hope that it will be useful,
-    but WITHOUT ANY WARRANTY; without even the implied warranty of
-    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU General Public License for more details.
+ This program is distributed in the hope that it will be useful,
+ but WITHOUT ANY WARRANTY; without even the implied warranty of
+ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ GNU General Public License for more details.
 
-    You should have received a copy of the GNU General Public License
-    along with this program; if not, write to the Free Software
-    Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA
-    02110-1301  USA.
+ You should have received a copy of the GNU General Public License
+ along with this program; if not, write to the Free Software
+ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA
+ 02110-1301  USA.
 */
-
 #ifndef KEYBOARDTRANSLATOR_H
 #define KEYBOARDTRANSLATOR_H
 
-// Qt
 #include <QHash>
 #include <QList>
 #include <QKeySequence>
 #include <QMetaType>
 #include <QVarLengthArray>
 
-// Konsole
-//#include "konsole_export.h"
-#define KONSOLEPRIVATE_EXPORT
-
 class QIODevice;
 class QTextStream;
-
-namespace Konsole
-{
 
 /**
  * A convertor which maps between key sequences pressed by the user and the
@@ -63,8 +54,7 @@ public:
      * This enum describes the states which may be associated with with a particular
      * entry in the keyboard translation entry.
      */
-    enum State
-    {
+    enum State {
         /** Indicates that no special state is active */
         NoState = 0,
         /**
@@ -95,8 +85,7 @@ public:
     /**
      * This enum describes commands which are associated with particular key sequences.
      */
-    enum Command
-    {
+    enum Command {
         /** Indicates that no command is associated with this command sequence */
         NoCommand = 0,
         /** TODO Document me */
@@ -125,8 +114,7 @@ public:
      * and the character sequence and commands associated with it for a particular
      * KeyboardTranslator.
      */
-    class Entry
-    {
+    class Entry {
     public:
         /**
          * Constructs a new entry for a keyboard translator.
@@ -318,7 +306,6 @@ public:
     static const Qt::KeyboardModifier CTRL_MOD;
 
 private:
-
     QMultiHash<int,Entry> _entries; // entries in this keyboard translation,
                                                  // entries are indexed according to
                                                  // their keycode
@@ -388,10 +375,8 @@ public:
     static KeyboardTranslator::Entry createEntry( const QString& condition ,
                                                   const QString& result );
 private:
-    struct Token
-    {
-        enum Type
-        {
+    struct Token {
+        enum Type {
             TitleKeyword,
             TitleText,
             KeyKeyword,
@@ -414,7 +399,7 @@ private:
     static bool parseAsModifier(const QString& item , Qt::KeyboardModifier& modifier);
     static bool parseAsStateFlag(const QString& item , KeyboardTranslator::State& state);
     static bool parseAsKeyCode(const QString& item , int& keyCode);
-       static bool parseAsCommand(const QString& text , KeyboardTranslator::Command& command);
+    static bool parseAsCommand(const QString& text , KeyboardTranslator::Command& command);
 
     QIODevice* _source;
     QString _description;
@@ -456,7 +441,7 @@ private:
  * Manages the keyboard translations available for use by terminal sessions,
  * see KeyboardTranslator.
  */
-class KONSOLEPRIVATE_EXPORT KeyboardTranslatorManager
+class KeyboardTranslatorManager
 {
 public:
     /**
@@ -507,7 +492,7 @@ public:
     QList<QString> allTranslators();
 
     /** Returns the global KeyboardTranslatorManager instance. */
-   static KeyboardTranslatorManager* instance();
+    static KeyboardTranslatorManager* instance();
 
 private:
     static const QByteArray defaultTranslatorText;
@@ -525,53 +510,60 @@ private:
     bool _haveLoadedAll;
 };
 
-inline int KeyboardTranslator::Entry::keyCode() const { return _keyCode; }
-inline void KeyboardTranslator::Entry::setKeyCode(int keyCode) { _keyCode = keyCode; }
+inline int KeyboardTranslator::Entry::keyCode() const { 
+    return _keyCode; 
+}
 
-inline void KeyboardTranslator::Entry::setModifiers( Qt::KeyboardModifiers modifier )
-{
+inline void KeyboardTranslator::Entry::setKeyCode(int keyCode) { 
+    _keyCode = keyCode; 
+}
+
+inline void KeyboardTranslator::Entry::setModifiers( Qt::KeyboardModifiers modifier ) {
     _modifiers = modifier;
 }
-inline Qt::KeyboardModifiers KeyboardTranslator::Entry::modifiers() const { return _modifiers; }
 
-inline void  KeyboardTranslator::Entry::setModifierMask( Qt::KeyboardModifiers mask )
-{
+inline Qt::KeyboardModifiers KeyboardTranslator::Entry::modifiers() const {
+    return _modifiers; 
+}
+
+inline void  KeyboardTranslator::Entry::setModifierMask( Qt::KeyboardModifiers mask ) {
    _modifierMask = mask;
 }
-inline Qt::KeyboardModifiers KeyboardTranslator::Entry::modifierMask() const { return _modifierMask; }
 
-inline bool KeyboardTranslator::Entry::isNull() const
-{
+inline Qt::KeyboardModifiers KeyboardTranslator::Entry::modifierMask() const {
+    return _modifierMask; 
+}
+
+inline bool KeyboardTranslator::Entry::isNull() const {
     return ( *this == Entry() );
 }
 
-inline void KeyboardTranslator::Entry::setCommand( Command command )
-{
+inline void KeyboardTranslator::Entry::setCommand( Command command ) {
     _command = command;
 }
-inline KeyboardTranslator::Command KeyboardTranslator::Entry::command() const { return _command; }
 
-inline void KeyboardTranslator::Entry::setText( const QByteArray& text )
-{
+inline KeyboardTranslator::Command KeyboardTranslator::Entry::command() const { 
+    return _command; 
+}
+
+inline void KeyboardTranslator::Entry::setText( const QByteArray& text ) {
     _text = unescape(text);
 }
-inline int oneOrZero(int value)
-{
+
+inline int oneOrZero(int value) {
     return value ? 1 : 0;
 }
-inline QByteArray KeyboardTranslator::Entry::text(bool expandWildCards,Qt::KeyboardModifiers modifiers) const
-{
+
+inline QByteArray KeyboardTranslator::Entry::text(bool expandWildCards,Qt::KeyboardModifiers modifiers) const {
     QByteArray expandedText = _text;
 
-    if (expandWildCards)
-    {
+    if (expandWildCards) {
         int modifierValue = 1;
         modifierValue += oneOrZero(modifiers & Qt::ShiftModifier);
         modifierValue += oneOrZero(modifiers & Qt::AltModifier) << 1;
         modifierValue += oneOrZero(modifiers & KeyboardTranslator::CTRL_MOD) << 2;
 
-        for (int i=0;i<_text.length();i++)
-        {
+        for (int i=0;i<_text.length();i++) {
             if (expandedText[i] == '*')
                 expandedText[i] = '0' + modifierValue;
         }
@@ -580,22 +572,24 @@ inline QByteArray KeyboardTranslator::Entry::text(bool expandWildCards,Qt::Keybo
     return expandedText;
 }
 
-inline void KeyboardTranslator::Entry::setState( States state )
-{
+inline void KeyboardTranslator::Entry::setState( States state ) {
     _state = state;
 }
-inline KeyboardTranslator::States KeyboardTranslator::Entry::state() const { return _state; }
 
-inline void KeyboardTranslator::Entry::setStateMask( States stateMask )
-{
+inline KeyboardTranslator::States KeyboardTranslator::Entry::state() const { 
+    return _state; 
+}
+
+inline void KeyboardTranslator::Entry::setStateMask( States stateMask ) {
     _stateMask = stateMask;
 }
-inline KeyboardTranslator::States KeyboardTranslator::Entry::stateMask() const { return _stateMask; }
 
+inline KeyboardTranslator::States KeyboardTranslator::Entry::stateMask() const { 
+    return _stateMask; 
 }
 
-Q_DECLARE_METATYPE(Konsole::KeyboardTranslator::Entry)
-Q_DECLARE_METATYPE(const Konsole::KeyboardTranslator*)
+Q_DECLARE_METATYPE(KeyboardTranslator::Entry)
+Q_DECLARE_METATYPE(const KeyboardTranslator*)
 
 #endif // KEYBOARDTRANSLATOR_H
 

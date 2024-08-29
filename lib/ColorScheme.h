@@ -1,28 +1,26 @@
 /*
-    This source file is part of Konsole, a terminal emulator.
-
-    Copyright 2007-2008 by Robert Knight <robertknight@gmail.com>
-
-    This program is free software; you can redistribute it and/or modify
-    it under the terms of the GNU General Public License as published by
-    the Free Software Foundation; either version 2 of the License, or
-    (at your option) any later version.
-
-    This program is distributed in the hope that it will be useful,
-    but WITHOUT ANY WARRANTY; without even the implied warranty of
-    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU General Public License for more details.
-
-    You should have received a copy of the GNU General Public License
-    along with this program; if not, write to the Free Software
-    Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA
-    02110-1301  USA.
+ This source file is part of Konsole, a terminal emulator.
+ 
+ Copyright 2007-2008 by Robert Knight <robertknight@gmail.com>
+ 
+ This program is free software; you can redistribute it and/or modify
+ it under the terms of the GNU General Public License as published by
+ the Free Software Foundation; either version 2 of the License, or
+ (at your option) any later version.
+ 
+ This program is distributed in the hope that it will be useful,
+ but WITHOUT ANY WARRANTY; without even the implied warranty of
+ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ GNU General Public License for more details.
+ 
+ You should have received a copy of the GNU General Public License
+ along with this program; if not, write to the Free Software
+ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA
+ 02110-1301  USA.
 */
-
 #ifndef COLORSCHEME_H
 #define COLORSCHEME_H
 
-// Qt
 #include <QHash>
 #include <QList>
 #include <QMetaType>
@@ -30,14 +28,9 @@
 #include <QSet>
 #include <QSettings>
 
-// Konsole
 #include "CharacterColor.h"
 
 class QIODevice;
-//class KConfig;
-
-namespace Konsole
-{
 
 /**
  * Represents a color scheme for a terminal display.
@@ -67,7 +60,7 @@ public:
     QString name() const;
 
 #if 0
-// Implemented upstream - in user apps
+    // Implemented upstream - in user apps
     /** Reads the color scheme from the specified configuration source */
     void read(KConfig& config);
     /** Writes the color scheme to the specified configuration source */
@@ -84,8 +77,6 @@ public:
      *
      * @param table Array into which the color entries for this color scheme
      * are copied.
-     * @param randomSeed Color schemes may allow certain colors in their
-     * palette to be randomized.  The seed is used to pick the random color.
      */
     void getColorTable(ColorEntry* table) const;
 
@@ -149,13 +140,11 @@ public:
 
 private:
     // specifies how much a particular color can be randomized by
-    class RandomizationRange
-    {
+    class RandomizationRange {
     public:
         RandomizationRange() : hue(0) , saturation(0) , value(0) {}
 
-        bool isNull() const
-        {
+        bool isNull() const {
             return ( hue == 0 && saturation == 0 && value == 0 );
         }
 
@@ -169,7 +158,7 @@ private:
     const ColorEntry* colorTable() const;
 
 #if 0
-// implemented upstream - user apps
+    // implemented upstream - user apps
     // reads a single colour entry from a KConfig source
     // and sets the palette entry at 'index' to the entry read.
     void readColorEntry(KConfig& config , int index);
@@ -200,7 +189,7 @@ private:
     static const char* const translatedColorNames[TABLE_COLORS];
 
     static const ColorEntry defaultTable[]; // table of default color entries
-
+    
     ColorScheme& operator=(const ColorScheme&) = delete;
 };
 
@@ -226,7 +215,6 @@ public:
 class ColorSchemeManager
 {
 public:
-
     /**
      * Constructs a new ColorSchemeManager and loads the list
      * of available color schemes.
@@ -255,15 +243,6 @@ public:
      */
     const ColorScheme* findColorScheme(const QString& name);
 
-#if 0
-    /**
-     * Adds a new color scheme to the manager.  If @p scheme has the same name as
-     * an existing color scheme, it replaces the existing scheme.
-     *
-     * TODO - Ensure the old color scheme gets deleted
-     */
-    void addColorScheme(ColorScheme* scheme);
-#endif
     /**
      * Deletes a color scheme.  Returns true on successful deletion or false otherwise.
      */
@@ -320,8 +299,6 @@ private:
     static const ColorScheme _defaultColorScheme;
 };
 
-}
-
-Q_DECLARE_METATYPE(const Konsole::ColorScheme*)
+Q_DECLARE_METATYPE(const ColorScheme*)
 
 #endif //COLORSCHEME_H

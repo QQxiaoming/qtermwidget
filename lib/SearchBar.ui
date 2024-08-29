@@ -7,22 +7,17 @@
     <x>0</x>
     <y>0</y>
     <width>399</width>
-    <height>40</height>
+    <height>50</height>
    </rect>
   </property>
   <property name="windowTitle">
-   <string>SearchBar</string>
+   <string notr="true">SearchBar</string>
   </property>
   <layout class="QHBoxLayout" name="horizontalLayout">
    <item>
     <widget class="QToolButton" name="closeButton">
      <property name="text">
-      <string>X</string>
-     </property>
-     <property name="icon">
-      <iconset theme="dialog-close">
-       <normaloff/>
-      </iconset>
+      <string notr="true">X</string>
      </property>
     </widget>
    </item>
@@ -39,34 +34,21 @@
    <item>
     <widget class="QToolButton" name="findPreviousButton">
      <property name="text">
-      <string>&lt;</string>
-     </property>
-     <property name="icon">
-      <iconset theme="go-previous">
-       <normaloff/>
-      </iconset>
+      <string notr="true">&lt;</string>
      </property>
     </widget>
    </item>
    <item>
     <widget class="QToolButton" name="findNextButton">
      <property name="text">
-      <string>&gt;</string>
-     </property>
-     <property name="icon">
-      <iconset theme="go-next">
-       <normaloff/>
-      </iconset>
+      <string notr="true">&gt;</string>
      </property>
     </widget>
    </item>
    <item>
     <widget class="QToolButton" name="optionsButton">
      <property name="text">
-      <string>...</string>
-     </property>
-     <property name="icon">
-      <iconset theme="preferences-system"/>
+      <string notr="true">...</string>
      </property>
      <property name="popupMode">
       <enum>QToolButton::InstantPopup</enum>

@@ -1,32 +1,24 @@
 /*
-    Copyright (C) 2007 by Robert Knight <robertknight@gmail.com>
-
-    This program is free software; you can redistribute it and/or modify
-    it under the terms of the GNU General Public License as published by
-    the Free Software Foundation; either version 2 of the License, or
-    (at your option) any later version.
-
-    This program is distributed in the hope that it will be useful,
-    but WITHOUT ANY WARRANTY; without even the implied warranty of
-    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU General Public License for more details.
-
-    You should have received a copy of the GNU General Public License
-    along with this program; if not, write to the Free Software
-    Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA
-    02110-1301  USA.
+ Copyright (C) 2007 by Robert Knight <robertknight@gmail.com>
+ 
+ This program is free software; you can redistribute it and/or modify
+ it under the terms of the GNU General Public License as published by
+ the Free Software Foundation; either version 2 of the License, or
+ (at your option) any later version.
+ 
+ This program is distributed in the hope that it will be useful,
+ but WITHOUT ANY WARRANTY; without even the implied warranty of
+ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ GNU General Public License for more details.
+ 
+ You should have received a copy of the GNU General Public License
+ along with this program; if not, write to the Free Software
+ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA
+ 02110-1301  USA.
 */
-
-// Own
 #include "ScreenWindow.h"
-
-// Qt
 #include <QtDebug>
-
-// Konsole
 #include "Screen.h"
-
-using namespace Konsole;
 
 ScreenWindow::ScreenWindow(QObject* parent)
     : QObject(parent)
@@ -159,6 +151,11 @@ void ScreenWindow::clearSelection()
     emit selectionChanged();
 }
 
+bool ScreenWindow::isClearSelection()
+{
+    return _screen->isClearSelection();
+}
+
 void ScreenWindow::setWindowLines(int lines)
 {
     Q_ASSERT(lines > 0);
@@ -194,9 +191,32 @@ QPoint ScreenWindow::cursorPosition() const
     return position;
 }
 
+int ScreenWindow::getCursorX() const {
+    return _screen->getCursorX();
+}
+
+int ScreenWindow::getCursorY() const {
+    return _screen->getCursorY();
+}
+
+void ScreenWindow::setCursorX(int x) {
+    _screen->setCursorX(x);
+}
+
+void ScreenWindow::setCursorY(int y) {
+    _screen->setCursorY(y);
+}
+
+QString ScreenWindow::getScreenText(int row1, int col1, int row2, int col2, int mode) {
+    return _screen->getScreenText( row1, col1, row2, col2, mode );
+}
+
 int ScreenWindow::currentLine() const
 {
-    return qBound(0,_currentLine,lineCount()-windowLines());
+    if(lineCount()>=windowLines()) {
+        return qBound(0,_currentLine,lineCount()-windowLines());
+    }
+    return 0;
 }
 
 void ScreenWindow::scrollBy( RelativeScrollMode mode , int amount )
@@ -338,5 +358,3 @@ void ScreenWindow::handleCommandFromKeyboard(KeyboardTranslator::Command command
         Q_EMIT outputChanged();
     }
 }
-
-//#include "ScreenWindow.moc"

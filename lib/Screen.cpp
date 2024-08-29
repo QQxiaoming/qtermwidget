@@ -19,29 +19,18 @@
    Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA
    02110-1301  USA.
    */
-
-// Own
 #include "Screen.h"
 
-// Standard
 #include <cstdio>
 #include <cstdlib>
-#include <unistd.h>
 #include <cstring>
 #include <cctype>
 
-// Qt
 #include <QTextStream>
 #include <QDate>
 
-// KDE
-//#include <kdebug.h>
-
-// Konsole
-#include "konsole_wcwidth.h"
+#include "CharWidth.h"
 #include "TerminalCharacterDecoder.h"
-
-using namespace Konsole;
 
 //Macro to convert x,y position on screen to position within an image.
 //
@@ -136,7 +125,6 @@ void Screen::cursorNextLine(int n)
         }
         n--;
     }
-
 }
 
 void Screen::cursorPreviousLine(int n)
@@ -176,7 +164,6 @@ void Screen::setMargins(int top, int bot)
     _bottomMargin = bot;
     cuX = 0;
     cuY = getMode(MODE_Origin) ? top : 0;
-
 }
 
 int Screen::topMargin() const
@@ -497,7 +484,6 @@ void Screen::copyFromScreen(Character* dest , int startLine , int count) const
             if (selBegin != -1 && isSelected(column,line + history->getLines()))
                 reverseRendition(dest[destIndex]);
         }
-
     }
 }
 
@@ -509,7 +495,7 @@ void Screen::getImage( Character* dest, int size, int startLine, int endLine ) c
     const int mergedLines = endLine - startLine + 1;
 
     Q_ASSERT( size >= mergedLines * columns );
-    Q_UNUSED( size )
+    Q_UNUSED( size );
 
     const int linesInHistoryBuffer = qBound(0,history->getLines()-startLine,mergedLines);
     const int linesInScreenBuffer = mergedLines - linesInHistoryBuffer;
@@ -603,6 +589,30 @@ void Screen::backspace()
 
     if (screenLines[cuY].size() < cuX+1)
         screenLines[cuY].resize(cuX+1);
+#if 0 //TODO: implement when unicode_width is fixed, we need more backspace/cursorMove
+    wchar_t c = 0;
+    if(cuX <= 0) {
+        if(cuY > 0) {
+            uint32_t endx = screenLines[cuY-1].size();
+            if(endx > 0) {
+                c = screenLines[cuY-1][endx-1].character;
+            }
+        }
+    } else {
+        c = screenLines[cuY][cuX-1].character;
+    }
+    if(c) {
+        int ow = CharWidth::unicode_width(c,false);
+        int w = CharWidth::unicode_width(c,true);
+        if(w == 2 && ow == 1) {
+            cuX = qMin(columns-1,cuX); // nowrap!
+            cuX = qMax(0,cuX-1);
+
+            if (screenLines[cuY].size() < cuX+1)
+                screenLines[cuY].resize(cuX+1);
+        }
+    }
+#endif
 }
 
 void Screen::tab(int n)
@@ -675,7 +685,7 @@ void Screen::displayCharacter(wchar_t c)
     // We indicate the fact that a newline has to be triggered by
     // putting the cursor one right to the last column of the screen.
 
-    int w = konsole_wcwidth(c);
+    int w = CharWidth::unicode_width(c);
     if (w <= 0)
         return;
 
@@ -849,6 +859,46 @@ int Screen::getCursorX() const
 int Screen::getCursorY() const
 {
     return cuY;
+}
+
+QString Screen::getScreenText(int row1, int col1, int row2, int col2, int mode) {
+    Q_ASSERT(row1 >= 0 && row1 < lines);
+    Q_ASSERT(row2 >= 0 && row2 < lines);
+    Q_ASSERT(col1 >= 0 && col1 < columns);
+    Q_ASSERT(col2 >= 0 && col2 < columns);
+
+    QString text;
+    int startLine = qMin(row1, row2);
+    int endLine = qMax(row1, row2);
+    int startCol = qMin(col1, col2);
+    int endCol = qMax(col1, col2);
+
+    if (mode == 1) {
+        for (int i = startLine; i <= endLine; i++) {
+            if(screenLines->size() <= i) break;
+            for (int j = startCol; j <= endCol; j++) {
+                if(screenLines[i].count() <= j) break;
+                wchar_t c = screenLines[i][j].character;
+                text += QChar(c);
+            }
+        }
+    } else if (mode == 2) {
+        for (int i = startLine; i <= endLine; i++) {
+            if(screenLines->size() <= i) break;
+            int size = 0;
+            for (int j = startCol; j <= endCol; j++) {
+                if(screenLines[i].count() <= j) break;
+                wchar_t c = screenLines[i][j].character;
+                text += QChar(c);
+                size++;
+            }
+            if(size != 0) {
+                text += '\n';
+            }
+        }
+    }
+
+    return text;
 }
 
 void Screen::clearImage(int loca, int loce, char c)
@@ -1060,6 +1110,13 @@ void Screen::clearSelection()
     selBottomRight = -1;
     selTopLeft = -1;
     selBegin = -1;
+}
+
+bool Screen::isClearSelection() 
+{
+    return selBottomRight == -1 &&
+           selTopLeft == -1 &&
+           selBegin == -1;
 }
 
 void Screen::getSelectionStart(int& column , int& line) const
@@ -1282,7 +1339,7 @@ int Screen::copyLineToStream(int line ,
         }
 
         // count cannot be any greater than length
-        count = qBound(0,count,length-start);
+        count = qBound(0,count,length>=start?length-start:0);
 
         Q_ASSERT( screenLine < lineProperties.count() );
         currentLineProperties |= lineProperties[screenLine];
@@ -1366,7 +1423,6 @@ void Screen::addHistLine()
                 selBegin = selBottomRight;
         }
     }
-
 }
 
 int Screen::getHistLines() const

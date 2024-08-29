@@ -19,38 +19,34 @@
     Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA
     02110-1301  USA.
 */
-
-// Own
 #include "Vt102Emulation.h"
 #include "tools.h"
-
-// Standard
+#include <string>
 #include <cstdio>
-#include <unistd.h>
 
-// Qt
 #include <QEvent>
 #include <QKeyEvent>
+#include <QClipboard>
+#include <QApplication>
+#include <QDir>
+#include <QRegularExpression>
 #include <QDebug>
 
-// Konsole
 #include "KeyboardTranslator.h"
 #include "Screen.h"
-
-
-using namespace Konsole;
 
 Vt102Emulation::Vt102Emulation()
     : Emulation(),
      prevCC(0),
      _titleUpdateTimer(new QTimer(this)),
      _reportFocusEvents(false),
-     _toUtf8(QStringEncoder::Utf8)
+     _toUtf8(QStringEncoder::Utf8),
+     _isTitleChanged(false)
 {
   _titleUpdateTimer->setSingleShot(true);
   QObject::connect(_titleUpdateTimer, &QTimer::timeout,
-          this, &Konsole::Vt102Emulation::updateTitle);
-
+          this, &Vt102Emulation::updateTitle);
+  
   initTokenizer();
   reset();
 }
@@ -136,7 +132,7 @@ void Vt102Emulation::reset()
 
 */
 
-#define TY_CONSTRUCT(T,A,N) ( (((static_cast<int>(N)) & 0xffff) << 16) | (((static_cast<int>(A)) & 0xff) << 8) | ((static_cast<int>(T)) & 0xff) )
+#define TY_CONSTRUCT(T,A,N) ( ((((int)N) & 0xffff) << 16) | ((((int)A) & 0xff) << 8) | (((int)T) & 0xff) )
 
 #define TY_CHR(   )     TY_CONSTRUCT(0,0,0)
 #define TY_CTL(A  )     TY_CONSTRUCT(1,A,0)
@@ -265,6 +261,8 @@ void Vt102Emulation::initTokenizer()
 // process an incoming unicode character
 void Vt102Emulation::receiveChar(wchar_t cc)
 {
+  if ((cc == L'\r')||(cc == L'\n'))
+    dupDisplayCharacter(cc);
   if (cc == DEL)
     return; //VT100: ignore.
 
@@ -300,7 +298,7 @@ void Vt102Emulation::receiveChar(wchar_t cc)
     if (lec(1,0,ESC)) { return; }
     if (lec(1,0,ESC+128)) { s[0] = ESC; receiveChar('['); return; }
     if (les(2,1,GRP)) { return; }
-    if (Xte         ) { processWindowAttributeChange(); resetTokenizer(); return; }
+    if (Xte         ) { processOSC(); resetTokenizer(); return; }
     if (Xpe         ) { prevCC = cc; return; }
     if (lec(3,2,'?')) { return; }
     if (lec(3,2,'>')) { return; }
@@ -378,30 +376,85 @@ void Vt102Emulation::receiveChar(wchar_t cc)
     return;
   }
 }
-void Vt102Emulation::processWindowAttributeChange()
+
+void Vt102Emulation::processOSC()
 {
-  // Describes the window or terminal session attribute to change
-  // See Session::UserTitleChange for possible values
-  int attributeToChange = 0;
-  int i;
-  for (i = 2; i < tokenBufferPos     &&
-              tokenBuffer[i] >= '0'  &&
-              tokenBuffer[i] <= '9'; i++)
-  {
-    attributeToChange = 10 * attributeToChange + (tokenBuffer[i]-'0');
-  }
+    QString token = QString::fromWCharArray(tokenBuffer, tokenBufferPos);
+    int i = 2;
+    while (i < tokenBufferPos && tokenBuffer[i] != ';')
+        i++;
+    if (i == tokenBufferPos) {
+        reportDecodingError();
+        return;
+    }
 
-  if (tokenBuffer[i] != ';')
-  {
-    reportDecodingError();
-    return;
-  }
+    int command = -1;
+    switch (i-1) {
+        case 2:
+            command = tokenBuffer[2] - L'0';
+            break;
+        case 3:
+            command = 10 * (tokenBuffer[2] - L'0') + (tokenBuffer[3] - L'0');
+            break;
+        default:
+            reportDecodingError();
+            return;
+    }
 
-  // copy from the first char after ';', and skipping the ending delimiter
-  // 0x07 or 0x92. Note that as control characters in OSC text parts are
-  // ignored, only the second char in ST ("\e\\") is appended to tokenBuffer.
-  QString newValue = QString::fromWCharArray(tokenBuffer + i + 1, tokenBufferPos-i-2);
+    switch (command) {
+        /* 
+         * Operating System Controls https://www.xfree86.org/current/ctlseqs.html
+         *
+         * Ps = 0 → Change Icon Name and Window Title to Pt
+         * Ps = 1 → Change Icon Name to Pt
+         * Ps = 2 → Change Window Title to Pt
+         */
+        case 0:
+        case 1:
+        case 2: {
+            QString newValue = QString::fromWCharArray(tokenBuffer + 3 + 1, tokenBufferPos-3-2);
+            processWindowAttributeChange(command,newValue);
+            break;
+        }
+        //  Ps = 52 → Manipulate Selection Data. These controls may be disabled using the allowWindowOps resource. 
+        case 52: {
+            /* The first, Pc , may contain any character from the set c p s 0 1 2 3 4 5 6 7 . It is used to construct a list of selection parameters for clipboard, primary, select, or cut buffers 0 through 8 respectively, in the order given. If the parameter is empty, xterm uses s 0 , to specify the configurable primary/clipboard selection and cut buffer 0.
+             * The second parameter, Pd , gives the selection data. Normally this is a string encoded in base64. The data becomes the new selection, which is then available for pasting by other applications.
+             * If the second parameter is a ? , xterm replies to the host with the selection data encoded using the same protocol.
+             */
+            QString arg = QString::fromWCharArray(tokenBuffer + 4 + 1, tokenBufferPos-4-2);
+            QStringList args = arg.split(";", Qt::SkipEmptyParts);
+            auto processOSC52Text = [&](QString base64, QClipboard::Mode mode) {
+                QClipboard *clipboard = QApplication::clipboard();
+                if(base64 == "!") {
+                    clipboard->clear(mode);
+                } else {
+                    QByteArray data = QByteArray::fromBase64(base64.toUtf8());
+                    clipboard->setText(QString::fromUtf8(data), mode);
+                }
+            };
+            if(args.size() == 1 && args.at(0) != "?") {
+                processOSC52Text(args.at(0), QClipboard::Clipboard);
+            } else if(args.size() == 2) {
+              if(args.at(0) == "c" && args.at(1) != "?") {
+                processOSC52Text(args.at(1), QClipboard::Clipboard);
+              }
+              if(QApplication::clipboard()->supportsSelection()) {
+                if(args.at(0) == "p" && args.at(1) != "?") {
+                  processOSC52Text(args.at(1), QClipboard::Selection);
+                }
+              }
+            }
+            break;
+        }
+        default:
+            reportDecodingError();
+            break;
+    }
+}
 
+void Vt102Emulation::processWindowAttributeChange(int attributeToChange, QString newValue)
+{
   _pendingTitleUpdates[attributeToChange] = newValue;
   _titleUpdateTimer->start(20);
 }
@@ -411,9 +464,76 @@ void Vt102Emulation::updateTitle()
     QListIterator<int> iter( _pendingTitleUpdates.keys() );
     while (iter.hasNext()) {
         int arg = iter.next();
-        emit titleChanged( arg , _pendingTitleUpdates[arg] );
+        doTitleChanged( arg , _pendingTitleUpdates[arg] );
     }
     _pendingTitleUpdates.clear();
+}
+
+void Vt102Emulation::doTitleChanged( int what, const QString & caption )
+{
+    //set to true if anything is actually changed (eg. old _nameTitle != new _nameTitle )
+    bool modified = false;
+
+    // (btw: what=0 changes _userTitle and icon, what=1 only icon, what=2 only _nameTitle
+    if ((what == 0) || (what == 2)) {
+        _isTitleChanged = true;
+        if ( _userTitle != caption ) {
+            _userTitle = caption;
+            modified = true;
+        }
+    }
+
+    if ((what == 0) || (what == 1)) {
+        _isTitleChanged = true;
+        if ( _iconText != caption ) {
+            _iconText = caption;
+            modified = true;
+        }
+    }
+
+    if (what == 11) {
+        QString colorString = caption.section(QLatin1Char(';'),0,0);
+        QColor backColor = QColor(colorString);
+        if (backColor.isValid()) { // change color via \033]11;Color\007
+            if (backColor != _modifiedBackground) {
+                _modifiedBackground = backColor;
+                emit changeBackgroundColorRequest(backColor);
+            }
+        }
+    }
+
+    if (what == 30) {
+        _isTitleChanged = true;
+        if ( _nameTitle != caption ) {
+            _nameTitle=caption;
+            return;
+        }
+    }
+
+    if (what == 31) {
+        QString cwd=caption;
+        cwd=cwd.replace( QRegularExpression(QLatin1String("^~")), QDir::homePath() );
+        emit openUrlRequest(cwd);
+    }
+
+    // change icon via \033]32;Icon\007
+    if (what == 32) {
+        _isTitleChanged = true;
+        if ( _iconName != caption ) {
+            _iconName = caption;
+
+            modified = true;
+        }
+    }
+
+    if (what == 50) {
+        emit profileChangeCommandReceived(caption);
+        return;
+    }
+
+    if ( modified ) {
+        emit titleChanged(what,caption);
+    }
 }
 
 // Interpreting Codes ---------------------------------------------------------
@@ -438,8 +558,7 @@ void Vt102Emulation::processToken(int token, wchar_t p, int q)
 {
   switch (token)
   {
-
-    case TY_CHR(         ) : _currentScreen->displayCharacter     (p         ); break; //UTF16
+    case TY_CHR(         ) : _currentScreen->displayCharacter     (p         );dupDisplayCharacter(p); break; //UTF16
 
     //             127 DEL    : ignored on input
 
@@ -470,9 +589,9 @@ void Vt102Emulation::processToken(int token, wchar_t p, int q)
     case TY_CTL('U'      ) : /* NAK: ignored                      */ break;
     case TY_CTL('V'      ) : /* SYN: ignored                      */ break;
     case TY_CTL('W'      ) : /* ETB: ignored                      */ break;
-    case TY_CTL('X'      ) : _currentScreen->displayCharacter     (    0x2592); break; //VT100
+    case TY_CTL('X'      ) : _currentScreen->displayCharacter     (    0x2592);dupDisplayCharacter(0x2592); break; //VT100
     case TY_CTL('Y'      ) : /* EM : ignored                      */ break;
-    case TY_CTL('Z'      ) : _currentScreen->displayCharacter     (    0x2592); break; //VT100
+    case TY_CTL('Z'      ) : _currentScreen->displayCharacter     (    0x2592);dupDisplayCharacter(0x2592); break; //VT100
     case TY_CTL('['      ) : /* ESC: cannot be seen here.         */ break;
     case TY_CTL('\\'     ) : /* FS : ignored                      */ break;
     case TY_CTL(']'      ) : /* GS : ignored                      */ break;
@@ -940,7 +1059,7 @@ void Vt102Emulation::sendMouseEvent( int cb, int cx, int cy , int eventType )
     if ((getMode(MODE_Mouse1002) || getMode(MODE_Mouse1003)) && eventType == 1)
       cb += 0x20; //add 32 to signify motion event
 
-    char command[32];
+    char command[64];
     command[0] = '\0';
     // Check the extensions in decreasing order of preference. Encoding the release event above assumes that 1006 comes first.
     if (getMode(MODE_Mouse1006)) {
@@ -953,8 +1072,8 @@ void Vt102Emulation::sendMouseEvent( int cb, int cx, int cy , int eventType )
             // coordinate+32, no matter what the locale is. We could easily
             // convert manually, but QString can also do it for us.
             QChar coords[2];
-            coords[0] = QChar(cx + 0x20);
-            coords[1] = QChar(cy + 0x20);
+            coords[0] = static_cast<char16_t>(cx + 0x20);
+            coords[1] = static_cast<char16_t>(cy + 0x20);
             QString coordsStr = QString(coords, 2);
             QByteArray utf8 = coordsStr.toUtf8();
             snprintf(command, sizeof(command), "\033[M%c%s", cb + 0x20, utf8.constData());
@@ -1038,6 +1157,29 @@ void Vt102Emulation::sendKeyEvent(QKeyEvent* event, bool fromPaste)
                                                 modifiers,
                                                 states );
 
+        if ((modifiers & Qt::AltModifier) && (event->key() == Qt::Key_Left)) {
+            entry = _keyTranslator->findEntry(Qt::Key_Home, Qt::NoModifier, states);
+            modifiers = Qt::NoModifier;
+        } else if ((modifiers & Qt::AltModifier) && (event->key() == Qt::Key_Right)) {
+            entry = _keyTranslator->findEntry(Qt::Key_End, Qt::NoModifier, states);
+            modifiers = Qt::NoModifier;
+        } 
+      #if defined(Q_OS_MACOS)
+        if (( modifiers & Qt::ControlModifier ) && ( event->key() == Qt::Key_Backspace )) {
+            entry = _keyTranslator->findEntry(Qt::Key_Delete, Qt::NoModifier, states);
+            modifiers = Qt::NoModifier;
+        }
+      #endif
+      #if defined(Q_OS_WIN) || defined(Q_OS_LINUX)
+        if (_enableHandleCtrlC && ( modifiers & Qt::ControlModifier ) && ( event->key() == Qt::Key_C )){
+            bool isSelection = !_currentScreen->isClearSelection();
+            if (isSelection) {
+                emit handleCtrlC();
+                return;
+            }
+        }
+      #endif
+
         // send result to terminal
         QByteArray textToSend;
 
@@ -1073,9 +1215,7 @@ void Vt102Emulation::sendKeyEvent(QKeyEvent* event, bool fromPaste)
         }
         else if ( !entry.text().isEmpty() )
         {
-	    QString str = QString::fromUtf8(entry.text(true,modifiers));
-	    QByteArray bytes = _toUtf8(str);
-	    textToSend += bytes;
+            textToSend += entry.text(true, modifiers);
         }
         else if((modifiers & KeyboardTranslator::CTRL_MOD) && event->key() >= 0x40 && event->key() < 0x5f) {
             textToSend += (event->key() & 0x1f);
@@ -1090,8 +1230,7 @@ void Vt102Emulation::sendKeyEvent(QKeyEvent* event, bool fromPaste)
             textToSend += "\033[6~";
         }
         else {
-	    QByteArray bytes = _toUtf8(event->text());
-	    textToSend += bytes;
+            textToSend += _fromUtf16(event->text());
         }
 
         if (!fromPaste && textToSend.length()) {
@@ -1140,11 +1279,18 @@ void Vt102Emulation::sendKeyEvent(QKeyEvent* event, bool fromPaste)
 
 // Apply current character map.
 
-wchar_t Vt102Emulation::applyCharset(wchar_t c)
-{
-  if (CHARSET.graphic && 0x5f <= c && c <= 0x7e) return vt100_graphics[c-0x5f];
-  if (CHARSET.pound && c == '#' ) return 0xa3; //This mode is obsolete
-  return c;
+wchar_t Vt102Emulation::applyCharset(wchar_t c) {
+    // assert for i in [0..31] : vt100extended(vt100_graphics[i]) == i.
+    const unsigned short vt100_graphics[32] = { 
+        // 0/8     1/9    2/10    3/11    4/12    5/13    6/14    7/15
+        0x0020, 0x25C6, 0x2592, 0x2409, 0x240c, 0x240d, 0x240a, 0x00b0,
+        0x00b1, 0x2424, 0x240b, 0x2518, 0x2510, 0x250c, 0x2514, 0x253c,
+        0xF800, 0xF801, 0x2500, 0xF803, 0xF804, 0x251c, 0x2524, 0x2534,
+        0x252c, 0x2502, 0x2264, 0x2265, 0x03C0, 0x2260, 0x00A3, 0x00b7
+    };
+    if (CHARSET.graphic && 0x5f <= c && c <= 0x7e) return vt100_graphics[c-0x5f];
+    if (CHARSET.pound && c == '#' ) return 0xa3; //This mode is obsolete
+    return c;
 }
 
 /*
@@ -1356,6 +1502,4 @@ void Vt102Emulation::reportDecodingError()
     return;
   qCDebug(qtermwidgetLogger) << "Undecodable sequence:" << QString::fromWCharArray(tokenBuffer, tokenBufferPos);
 }
-
-//#include "Vt102Emulation.moc"
 

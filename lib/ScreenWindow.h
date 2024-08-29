@@ -1,36 +1,31 @@
 /*
-    Copyright 2007-2008 by Robert Knight <robertknight@gmail.com>
-
-    This program is free software; you can redistribute it and/or modify
-    it under the terms of the GNU General Public License as published by
-    the Free Software Foundation; either version 2 of the License, or
-    (at your option) any later version.
-
-    This program is distributed in the hope that it will be useful,
-    but WITHOUT ANY WARRANTY; without even the implied warranty of
-    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU General Public License for more details.
-
-    You should have received a copy of the GNU General Public License
-    along with this program; if not, write to the Free Software
-    Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA
-    02110-1301  USA.
+ Copyright 2007-2008 by Robert Knight <robertknight@gmail.com>
+ 
+ This program is free software; you can redistribute it and/or modify
+ it under the terms of the GNU General Public License as published by
+ the Free Software Foundation; either version 2 of the License, or
+ (at your option) any later version.
+ 
+ This program is distributed in the hope that it will be useful,
+ but WITHOUT ANY WARRANTY; without even the implied warranty of
+ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ GNU General Public License for more details.
+ 
+ You should have received a copy of the GNU General Public License
+ along with this program; if not, write to the Free Software
+ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA
+ 02110-1301  USA.
 */
 
 #ifndef SCREENWINDOW_H
 #define SCREENWINDOW_H
 
-// Qt
 #include <QObject>
 #include <QPoint>
 #include <QRect>
 
-// Konsole
 #include "Character.h"
 #include "KeyboardTranslator.h"
-
-namespace Konsole
-{
 
 class Screen;
 
@@ -141,6 +136,7 @@ public:
      * Clears the current selection
      */
     void clearSelection();
+    bool isClearSelection();
 
     /** Sets the number of lines in the window */
     void setWindowLines(int lines);
@@ -163,6 +159,11 @@ public:
      */
     QPoint cursorPosition() const;
 
+    int getCursorX() const;
+    int getCursorY() const;
+    void setCursorX(int x);
+    void setCursorY(int y);
+    
     /**
      * Convenience method. Returns true if the window is currently at the bottom
      * of the screen.
@@ -216,6 +217,8 @@ public:
      */
     QString selectedText( bool preserveLineBreaks ) const;
 
+    QString getScreenText(int row1, int col1, int row2, int col2, int mode);
+
 public slots:
     /**
      * Notifies the window that the contents of the associated terminal screen have changed.
@@ -244,6 +247,8 @@ signals:
 
     void scrollToEnd();
 
+    void handleCtrlC(void);
+
 private:
     int endWindowLine() const;
     void fillUnusedArea();
@@ -260,5 +265,4 @@ private:
                        // the last call to resetScrollCount()
 };
 
-}
 #endif // SCREENWINDOW_H
