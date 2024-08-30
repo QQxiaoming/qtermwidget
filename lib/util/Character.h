@@ -71,11 +71,9 @@ public:
         , rendition(_r)
         , foregroundColor(_f)
         , backgroundColor(_b) {
-
     }
 
-    union
-    {
+    union {
         /** The unicode character value for this character. */
         wchar_t character;
         /**

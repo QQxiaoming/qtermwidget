@@ -19,7 +19,6 @@
     Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA
     02110-1301  USA.
 */
-
 #ifndef SCREEN_H
 #define SCREEN_H
 
@@ -663,8 +662,7 @@ private:
     CharacterColor effectiveBackground; // the cu_* variables above
     quint8 effectiveRendition;          // to speed up operation
 
-    class SavedState
-    {
+    class SavedState {
     public:
         SavedState()
         : cursorColumn(0),cursorLine(0),rendition(0) {}

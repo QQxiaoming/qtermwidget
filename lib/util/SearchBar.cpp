@@ -24,11 +24,10 @@
 #include "SearchBar.h"
 //#include "qfonticon.h"
 
-SearchBar::SearchBar(QWidget *parent) : QWidget(parent)
-{
+SearchBar::SearchBar(QWidget *parent) : QWidget(parent) {
     widget.setupUi(this);
     setAutoFillBackground(true); // make it always opaque, especially inside translucent windows
-
+ 
     connect(widget.closeButton, &QToolButton::clicked, this, &SearchBar::hide);
     connect(widget.searchTextEdit, &QLineEdit::textChanged, this, &SearchBar::searchCriteriaChanged);
     connect(widget.findPreviousButton, &QToolButton::clicked, this, &SearchBar::findPrevious);
@@ -43,7 +42,6 @@ SearchBar::SearchBar(QWidget *parent) : QWidget(parent)
     m_matchCaseMenuEntry->setCheckable(true);
     m_matchCaseMenuEntry->setChecked(true);
     connect(m_matchCaseMenuEntry, &QAction::toggled, this, &SearchBar::searchCriteriaChanged);
-
 
     m_useRegularExpressionMenuEntry = optionsMenu->addAction(tr("Regular expression"));
     m_useRegularExpressionMenuEntry->setCheckable(true);
@@ -60,36 +58,30 @@ SearchBar::SearchBar(QWidget *parent) : QWidget(parent)
 SearchBar::~SearchBar() {
 }
 
-QString SearchBar::searchText()
-{
+QString SearchBar::searchText() {
     return widget.searchTextEdit->text();
 }
 
 
-bool SearchBar::useRegularExpression()
-{
+bool SearchBar::useRegularExpression() {
     return m_useRegularExpressionMenuEntry->isChecked();
 }
 
-bool SearchBar::matchCase()
-{
+bool SearchBar::matchCase() {
     return m_matchCaseMenuEntry->isChecked();
 }
 
-bool SearchBar::highlightAllMatches()
-{
+bool SearchBar::highlightAllMatches() {
     return m_highlightMatchesMenuEntry->isChecked();
 }
 
-void SearchBar::show()
-{
+void SearchBar::show() {
     QWidget::show();
     widget.searchTextEdit->setFocus();
     widget.searchTextEdit->selectAll();
 }
 
-void SearchBar::hide()
-{
+void SearchBar::hide() {
     QWidget::hide();
     if (QWidget *p = parentWidget())
     {
@@ -97,40 +89,29 @@ void SearchBar::hide()
     }
 }
 
-void SearchBar::noMatchFound()
-{
+void SearchBar::noMatchFound() {
     QPalette palette;
     palette.setColor(widget.searchTextEdit->backgroundRole(), QColor(255, 128, 128));
     widget.searchTextEdit->setPalette(palette);
 }
 
-
-void SearchBar::keyReleaseEvent(QKeyEvent* keyEvent)
-{
-    if (keyEvent->key() == Qt::Key_Return || keyEvent->key() == Qt::Key_Enter)
-    {
-        if (keyEvent->modifiers() == Qt::ShiftModifier)
-        {
-            Q_EMIT findPrevious();
+void SearchBar::keyReleaseEvent(QKeyEvent* keyEvent) {
+    if (keyEvent->key() == Qt::Key_Return || keyEvent->key() == Qt::Key_Enter) {
+        if (keyEvent->modifiers() == Qt::ShiftModifier) {
+            emit findPrevious();
+        } else {
+            emit findNext();
         }
-        else
-        {
-            Q_EMIT findNext();
-        }
-    }
-    else if (keyEvent->key() == Qt::Key_Escape)
-    {
+    } else if (keyEvent->key() == Qt::Key_Escape) {
         hide();
     }
 }
 
-void SearchBar::clearBackgroundColor()
-{
+void SearchBar::clearBackgroundColor() {
     widget.searchTextEdit->setPalette(QWidget::window()->palette());
 }
 
-void SearchBar::setText(const QString &text)
-{
+void SearchBar::setText(const QString &text) {
     return widget.searchTextEdit->setText(text);
 }
 

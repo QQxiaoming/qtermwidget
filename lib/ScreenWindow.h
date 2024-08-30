@@ -48,8 +48,7 @@ class Screen;
  */
 class ScreenWindow : public QObject
 {
-Q_OBJECT
-
+    Q_OBJECT
 public:
     /**
      * Constructs a new screen window with the given parent.
@@ -174,8 +173,7 @@ public:
     void scrollTo( int line );
 
     /** Describes the units which scrollBy() moves the window by. */
-    enum RelativeScrollMode
-    {
+    enum RelativeScrollMode {
         /** Scroll the window down by a given number of lines. */
         ScrollLines,
         /**
