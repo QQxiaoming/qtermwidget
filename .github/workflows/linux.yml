@@ -1,0 +1,35 @@
+name: linux
+
+on:
+  push:
+    branches: [ master ]
+    tags:
+      - V**
+  pull_request:
+    branches: [ master ]
+  workflow_dispatch:
+
+jobs:
+  ubuntu-2004:
+    runs-on: ubuntu-20.04
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Qt
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: '6.5.3'
+          modules: 'qtmultimedia'
+          aqtversion: ==3.1.7
+
+      - name: Install prerequisites
+        run: |
+          sudo apt update
+          sudo apt install -y make gcc patchelf chrpath qt5-default libxcb-cursor0 build-essential libgtk-3-dev
+
+      - name: Build all
+        run: |
+          qmake ./example.pro -spec linux-g++ CONFIG+=qtquickcompiler
+          make
+

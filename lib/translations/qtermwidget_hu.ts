@@ -11,7 +11,7 @@
     <message>
         <location filename="../Session.cpp" line="600"/>
         <source>Session &apos;%1&apos; exited with code %2.</source>
-        <translation>A munkamenet &apos;%1&apos; kilépett ezzel a kóddal %2.</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <location filename="../Session.cpp" line="602"/>

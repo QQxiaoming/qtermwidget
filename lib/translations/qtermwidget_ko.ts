@@ -49,7 +49,7 @@
     <message>
         <location filename="../TerminalDisplay.cpp" line="3261"/>
         <source>&lt;qt&gt;Output has been &lt;a href=&quot;http://en.wikipedia.org/wiki/Flow_control&quot;&gt;suspended&lt;/a&gt; by pressing Ctrl+S.  Press &lt;b&gt;Ctrl+Q&lt;/b&gt; to resume.&lt;/qt&gt;</source>
-        <translation>&lt;qt&gt;Ctrl+S를 눌러 출력이 &lt;a href=&quot;http://en.wikipedia.org/wiki/Flow_control&quot;&gt;일시 중단&lt;/a&gt;되었습니다. 재개하려면 &lt;b&gt;Ctrl+Q&lt;/b&gt;를 눌러주세요.&lt;/qt&gt;</translation>
+        <translation>&lt;qt&gt;Ctrl+S를 눌러 출력이 &lt;a href=&quot;http://en.wikipedia.org/wiki/Flow_control&quot;&gt;일시 중단&lt;/a&gt;되었습니다. 재개하려면 &lt;b&gt;Ctrl+Q&lt;/b&gt;를 누르십시오.&lt;/qt&gt;</translation>
     </message>
 </context>
 <context>
@@ -74,12 +74,12 @@
         <location filename="../ColorScheme.cpp" line="275"/>
         <location filename="../ColorScheme.cpp" line="290"/>
         <source>Un-named Color Scheme</source>
-        <translation>이름 없는 색상 구성표</translation>
+        <translation>이름 지정되지 않은 색 구성표</translation>
     </message>
     <message>
         <location filename="../ColorScheme.cpp" line="461"/>
         <source>Accessible Color Scheme</source>
-        <translation>접근 가능한 색상 구성표</translation>
+        <translation>접근 가능한 색 구성표</translation>
     </message>
     <message>
         <location filename="../Filter.cpp" line="520"/>
@@ -107,12 +107,12 @@
     <message>
         <location filename="../qtermwidget.cpp" line="465"/>
         <source>Color Scheme Error</source>
-        <translation>색상 구성표 오류</translation>
+        <translation>색 구성표 오류</translation>
     </message>
     <message>
         <location filename="../qtermwidget.cpp" line="466"/>
         <source>Cannot load color scheme: %1</source>
-        <translation>색상 구성표 불러올 수 없음: %1</translation>
+        <translation>색 구성표를 불러올 수 없음: %1</translation>
     </message>
 </context>
 <context>
