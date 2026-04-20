@@ -23,15 +23,12 @@
 #ifndef VT102EMULATION_H
 #define VT102EMULATION_H
 
-// Standard Library
 #include <cstdio>
 
-// Qt
 #include <QKeyEvent>
 #include <QHash>
 #include <QTimer>
 
-// Konsole
 #include "Emulation.h"
 #include "Screen.h"
 
@@ -50,9 +47,6 @@
 #define MODE_Allow132Columns (MODES_SCREEN+12)  // Allow DECCOLM mode
 #define MODE_BracketedPaste  (MODES_SCREEN+13)  // Xterm-style bracketed paste mode
 #define MODE_total           (MODES_SCREEN+14)
-
-namespace Konsole
-{
 
 struct CharCodes
 {
@@ -89,6 +83,15 @@ public:
   void reset() override;
   char eraseChar() const override;
 
+signals:
+  /**
+    * Requests that the background color of views on this session
+    * should be changed.
+    */
+  void changeBackgroundColorRequest(const QColor &);
+  /** TODO: Document me. */
+  void openUrlRequest(const QString & url);
+
 public slots:
   // reimplemented from Emulation
   void sendString(const char*,int length = -1) override;
@@ -110,6 +113,7 @@ private slots:
   void updateTitle();
 
 private:
+  void doTitleChanged( int what, const QString & caption );
   wchar_t applyCharset(wchar_t c);
   void setCharset(int n, int cs);
   void useCharset(int n);
@@ -133,7 +137,7 @@ private:
   void resetModes();
 
   void resetTokenizer();
-  #define MAX_TOKEN_LENGTH 256 // Max length of tokens (e.g. window title)
+  #define MAX_TOKEN_LENGTH 100000 // Max length of tokens (e.g. window title)
   void addToCurrentToken(wchar_t cc);
   wchar_t tokenBuffer[MAX_TOKEN_LENGTH]; //FIXME: overflow?
   int tokenBufferPos;
@@ -153,7 +157,8 @@ private:
   void reportDecodingError();
 
   void processToken(int code, wchar_t p, int q);
-  void processWindowAttributeChange();
+  void processOSC();
+  void processWindowAttributeChange(int attributeToChange, QString newValue);
   void requestWindowAttribute(int);
 
   void reportTerminalType();
@@ -194,10 +199,14 @@ private:
   QTimer* _titleUpdateTimer;
 
   bool _reportFocusEvents;
-
   QStringEncoder _toUtf8;
-};
 
-}
+  bool _isTitleChanged; ///< flag if the title/icon was changed by user
+  QString _userTitle;
+  QString _iconText; // as set by: echo -en '\033]1;IconText\007
+  QString _nameTitle;
+  QString _iconName;
+  QColor _modifiedBackground; // as set by: echo -en '\033]11;Color\007
+};
 
 #endif // VT102EMULATION_H

@@ -9,17 +9,17 @@
         <translation>세션 &apos;%1&apos;의 벨소리</translation>
     </message>
     <message>
-        <location filename="../Session.cpp" line="630"/>
+        <location filename="../Session.cpp" line="600"/>
         <source>Session &apos;%1&apos; exited with code %2.</source>
         <translation>&apos;%1&apos; 세션이 %2 코드로 종료되었습니다.</translation>
     </message>
     <message>
-        <location filename="../Session.cpp" line="632"/>
+        <location filename="../Session.cpp" line="602"/>
         <source>Session &apos;%1&apos; crashed.</source>
         <translation>&apos;%1&apos; 세션이 충돌했습니다.</translation>
     </message>
     <message>
-        <location filename="../Session.cpp" line="637"/>
+        <location filename="../Session.cpp" line="607"/>
         <source>Session &apos;%1&apos; exited unexpectedly.</source>
         <translation>&apos;%1&apos; 세션이 예기치 않게 종료되었습니다.</translation>
     </message>
@@ -27,29 +27,29 @@
 <context>
     <name>Konsole::TerminalDisplay</name>
     <message>
-        <location filename="../TerminalDisplay.cpp" line="1311"/>
+        <location filename="../TerminalDisplay.cpp" line="1278"/>
         <source>Size: XXX x XXX</source>
         <translation>크기: XXX x XXX</translation>
     </message>
     <message>
-        <location filename="../TerminalDisplay.cpp" line="1323"/>
+        <location filename="../TerminalDisplay.cpp" line="1290"/>
         <source>Size: %1 x %2</source>
         <translation>크기: %1 x %2</translation>
     </message>
     <message>
-        <location filename="../TerminalDisplay.cpp" line="2987"/>
+        <location filename="../TerminalDisplay.cpp" line="2790"/>
         <source>Paste multiline text</source>
         <translation>여러 줄 텍스트 붙여넣기</translation>
     </message>
     <message>
-        <location filename="../TerminalDisplay.cpp" line="2988"/>
+        <location filename="../TerminalDisplay.cpp" line="2791"/>
         <source>Are you sure you want to paste this text?</source>
         <translation>이 텍스트를 붙여넣으시겠습니까?</translation>
     </message>
     <message>
-        <location filename="../TerminalDisplay.cpp" line="3459"/>
+        <location filename="../TerminalDisplay.cpp" line="3261"/>
         <source>&lt;qt&gt;Output has been &lt;a href=&quot;http://en.wikipedia.org/wiki/Flow_control&quot;&gt;suspended&lt;/a&gt; by pressing Ctrl+S.  Press &lt;b&gt;Ctrl+Q&lt;/b&gt; to resume.&lt;/qt&gt;</source>
-        <translation>&lt;qt&gt;Ctrl+S를 눌러 출력이 &lt;a href=&quot;http://en.wikipedia.org/wiki/Flow_control&quot;&gt;일시 중단&lt;/a&gt;되었습니다. 재개하려면 &lt;b&gt;Ctrl+Q&lt;/b&gt;를 눌러주세요.&lt;/qt&gt;</translation>
+        <translation>&lt;qt&gt;Ctrl+S를 눌러 출력이 &lt;a href=&quot;http://en.wikipedia.org/wiki/Flow_control&quot;&gt;일시 중단&lt;/a&gt;되었습니다. 재개하려면 &lt;b&gt;Ctrl+Q&lt;/b&gt;를 누르십시오.&lt;/qt&gt;</translation>
     </message>
 </context>
 <context>
@@ -63,7 +63,7 @@
 <context>
     <name>QMessageBox</name>
     <message>
-        <location filename="../TerminalDisplay.cpp" line="2994"/>
+        <location filename="../TerminalDisplay.cpp" line="2797"/>
         <source>Show Details...</source>
         <translation>세부정보 표시하기...</translation>
     </message>
@@ -74,30 +74,30 @@
         <location filename="../ColorScheme.cpp" line="275"/>
         <location filename="../ColorScheme.cpp" line="290"/>
         <source>Un-named Color Scheme</source>
-        <translation>이름 없는 색상 구성표</translation>
+        <translation>이름 지정되지 않은 색 구성표</translation>
     </message>
     <message>
         <location filename="../ColorScheme.cpp" line="461"/>
         <source>Accessible Color Scheme</source>
-        <translation>접근 가능한 색상 구성표</translation>
+        <translation>접근 가능한 색 구성표</translation>
     </message>
     <message>
-        <location filename="../Filter.cpp" line="522"/>
+        <location filename="../Filter.cpp" line="520"/>
         <source>Open Link</source>
         <translation>링크 열기</translation>
     </message>
     <message>
-        <location filename="../Filter.cpp" line="523"/>
+        <location filename="../Filter.cpp" line="521"/>
         <source>Copy Link Address</source>
         <translation>링크 주소 복사하기</translation>
     </message>
     <message>
-        <location filename="../Filter.cpp" line="527"/>
+        <location filename="../Filter.cpp" line="525"/>
         <source>Send Email To...</source>
         <translation>이메일 보내기...</translation>
     </message>
     <message>
-        <location filename="../Filter.cpp" line="528"/>
+        <location filename="../Filter.cpp" line="526"/>
         <source>Copy Email Address</source>
         <translation>이메일 주소 복사하기</translation>
     </message>
@@ -107,12 +107,12 @@
     <message>
         <location filename="../qtermwidget.cpp" line="465"/>
         <source>Color Scheme Error</source>
-        <translation>색상 구성표 오류</translation>
+        <translation>색 구성표 오류</translation>
     </message>
     <message>
         <location filename="../qtermwidget.cpp" line="466"/>
         <source>Cannot load color scheme: %1</source>
-        <translation>색상 구성표 불러올 수 없음: %1</translation>
+        <translation>색 구성표를 불러올 수 없음: %1</translation>
     </message>
 </context>
 <context>
