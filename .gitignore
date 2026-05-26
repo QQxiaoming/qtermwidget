@@ -1,4 +1,6 @@
 build
+build*
 .kdev4
 *.pyc
 *.whl
+*.pro.user

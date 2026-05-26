@@ -4,22 +4,22 @@
 <context>
     <name>Konsole::Session</name>
     <message>
-        <location filename="../Session.cpp" line="481"/>
+        <location filename="../Session.cpp" line="448"/>
         <source>Bell in session &apos;%1&apos;</source>
         <translation>&apos;%1&apos; oturumunda zil çal</translation>
     </message>
     <message>
-        <location filename="../Session.cpp" line="663"/>
+        <location filename="../Session.cpp" line="600"/>
         <source>Session &apos;%1&apos; exited with code %2.</source>
         <translation>Oturum &apos;%1&apos;, %2 koduyla çıktı.</translation>
     </message>
     <message>
-        <location filename="../Session.cpp" line="665"/>
+        <location filename="../Session.cpp" line="602"/>
         <source>Session &apos;%1&apos; crashed.</source>
         <translation>&apos;%1&apos; oturumu çöktü.</translation>
     </message>
     <message>
-        <location filename="../Session.cpp" line="670"/>
+        <location filename="../Session.cpp" line="607"/>
         <source>Session &apos;%1&apos; exited unexpectedly.</source>
         <translation>&apos;%1&apos; oturumu beklenmedik şekilde kapandı.</translation>
     </message>
@@ -27,27 +27,27 @@
 <context>
     <name>Konsole::TerminalDisplay</name>
     <message>
-        <location filename="../TerminalDisplay.cpp" line="1312"/>
+        <location filename="../TerminalDisplay.cpp" line="1278"/>
         <source>Size: XXX x XXX</source>
         <translation>Boyut: XXX x XXX</translation>
     </message>
     <message>
-        <location filename="../TerminalDisplay.cpp" line="1324"/>
+        <location filename="../TerminalDisplay.cpp" line="1290"/>
         <source>Size: %1 x %2</source>
         <translation>Boyut: %1 x %2</translation>
     </message>
     <message>
-        <location filename="../TerminalDisplay.cpp" line="2989"/>
+        <location filename="../TerminalDisplay.cpp" line="2790"/>
         <source>Paste multiline text</source>
         <translation>Çok satırlı metni yapıştır</translation>
     </message>
     <message>
-        <location filename="../TerminalDisplay.cpp" line="2990"/>
+        <location filename="../TerminalDisplay.cpp" line="2791"/>
         <source>Are you sure you want to paste this text?</source>
         <translation>Bu metni yapıştırmak istediğinizden emin misiniz?</translation>
     </message>
     <message>
-        <location filename="../TerminalDisplay.cpp" line="3462"/>
+        <location filename="../TerminalDisplay.cpp" line="3261"/>
         <source>&lt;qt&gt;Output has been &lt;a href=&quot;http://en.wikipedia.org/wiki/Flow_control&quot;&gt;suspended&lt;/a&gt; by pressing Ctrl+S.  Press &lt;b&gt;Ctrl+Q&lt;/b&gt; to resume.&lt;/qt&gt;</source>
         <translation>&lt;qt&gt;Çıktı, Ctrl+S&apos;ye basılarak &lt;a href=&quot;http://en.wikipedia.org/wiki/Flow_control&quot;&gt;durduruldu&lt;/a&gt;. Sürdürmek için &lt;b&gt;Ctrl+Q&lt;/b&gt;&apos;a basınız.&lt;/qt&gt;</translation>
     </message>
@@ -55,7 +55,7 @@
 <context>
     <name>Konsole::Vt102Emulation</name>
     <message>
-        <location filename="../Vt102Emulation.cpp" line="1150"/>
+        <location filename="../Vt102Emulation.cpp" line="1106"/>
         <source>No keyboard translator available.  The information needed to convert key presses into characters to send to the terminal is missing.</source>
         <translation>Hiçbir klavye çeviricisi yok.  Tuş vuruşlarını karaktere dönüştürüp uçbirime göndermek için gereken bilgi eksik.</translation>
     </message>
@@ -63,7 +63,7 @@
 <context>
     <name>QMessageBox</name>
     <message>
-        <location filename="../TerminalDisplay.cpp" line="2996"/>
+        <location filename="../TerminalDisplay.cpp" line="2797"/>
         <source>Show Details...</source>
         <translation>Detayları Göster...</translation>
     </message>
@@ -71,33 +71,33 @@
 <context>
     <name>QObject</name>
     <message>
-        <location filename="../ColorScheme.cpp" line="276"/>
-        <location filename="../ColorScheme.cpp" line="291"/>
+        <location filename="../ColorScheme.cpp" line="275"/>
+        <location filename="../ColorScheme.cpp" line="290"/>
         <source>Un-named Color Scheme</source>
         <translation>Adsız Renk Şeması</translation>
     </message>
     <message>
-        <location filename="../ColorScheme.cpp" line="462"/>
+        <location filename="../ColorScheme.cpp" line="461"/>
         <source>Accessible Color Scheme</source>
         <translation>Erişilebilir Renk Şeması</translation>
     </message>
     <message>
-        <location filename="../Filter.cpp" line="603"/>
+        <location filename="../Filter.cpp" line="520"/>
         <source>Open Link</source>
         <translation>Bağlantıyı Aç</translation>
     </message>
     <message>
-        <location filename="../Filter.cpp" line="604"/>
+        <location filename="../Filter.cpp" line="521"/>
         <source>Copy Link Address</source>
         <translation>Bağlantı Adresini Kopyala</translation>
     </message>
     <message>
-        <location filename="../Filter.cpp" line="608"/>
+        <location filename="../Filter.cpp" line="525"/>
         <source>Send Email To...</source>
         <translation>E-posta Gönder...</translation>
     </message>
     <message>
-        <location filename="../Filter.cpp" line="609"/>
+        <location filename="../Filter.cpp" line="526"/>
         <source>Copy Email Address</source>
         <translation>E-posta Adresini Kopyala</translation>
     </message>
@@ -105,12 +105,12 @@
 <context>
     <name>QTermWidget</name>
     <message>
-        <location filename="../qtermwidget.cpp" line="481"/>
+        <location filename="../qtermwidget.cpp" line="465"/>
         <source>Color Scheme Error</source>
         <translation>Renk Şeması Hatası</translation>
     </message>
     <message>
-        <location filename="../qtermwidget.cpp" line="482"/>
+        <location filename="../qtermwidget.cpp" line="466"/>
         <source>Cannot load color scheme: %1</source>
         <translation>Renk şeması yüklenemedi: %1</translation>
     </message>

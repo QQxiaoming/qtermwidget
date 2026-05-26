@@ -15,21 +15,17 @@
     GNU General Public License for more details.
 
     You should have received a copy of the GNU General Public License
-    along with this program; if not, write to the Free Software
-    Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA
-    02110-1301  USA.
+    along with this program; if not, see
+ <https://www.gnu.org/licenses/>.
 */
-
 #ifndef SCREEN_H
 #define SCREEN_H
 
-// Qt
 #include <QRect>
 #include <QSet>
 #include <QTextStream>
 #include <QVarLengthArray>
 
-// Konsole
 #include "Character.h"
 #include "History.h"
 
@@ -40,9 +36,6 @@
 #define MODE_Cursor    4
 #define MODE_NewLine   5
 #define MODES_SCREEN   6
-
-namespace Konsole
-{
 
 class TerminalCharacterDecoder;
 
@@ -317,6 +310,8 @@ public:
     int  getCursorX() const;
     /** Returns the line which the cursor is positioned on. */
     int  getCursorY() const;
+    
+    QString getScreenText(int row1, int col1, int row2, int col2, int mode);
 
     /** Clear the entire screen and move the cursor to the home position.
      * Equivalent to calling clearEntireScreen() followed by home().
@@ -396,11 +391,9 @@ public:
 
 
     /** Return the number of lines. */
-    int getLines() const
-    { return lines; }
+    int getLines() const { return lines; }
     /** Return the number of columns. */
-    int getColumns() const
-    { return columns; }
+    int getColumns() const { return columns; }
     /** Return the number of lines in the history buffer. */
     int getHistLines() const;
     /**
@@ -448,6 +441,7 @@ public:
 
     /** Clears the current selection */
     void clearSelection();
+    bool isClearSelection();
 
     /**
       *  Returns true if the character at (@p column, @p line) is part of the
@@ -560,17 +554,13 @@ public:
       * Character style.
       */
     static void fillWithDefaultChar(Character* dest, int count);
-
-    QSet<uint> usedExtendedChars() const
-    {
+    
+    QSet<uint> usedExtendedChars() const {
         QSet<uint> result;
-        for (int i = 0; i < lines; ++i)
-        {
+        for (int i = 0; i < lines; ++i) {
             const ImageLine &il = screenLines[i];
-            for (int j = 0; j < columns; ++j)
-            {
-                if (il[j].rendition & RE_EXTENDED_CHAR)
-                {
+            for (int j = 0; j < columns; ++j) {
+                if (il[j].rendition & RE_EXTENDED_CHAR) {
                     result << il[j].character;
                 }
             }
@@ -685,8 +675,7 @@ private:
     CharacterColor effectiveBackground; // the cu_* variables above
     quint8 effectiveRendition;          // to speed up operation
 
-    class SavedState
-    {
+    class SavedState {
     public:
         SavedState()
         : cursorColumn(0),cursorLine(0),rendition(0) {}
@@ -707,7 +696,5 @@ private:
 
     static Character defaultChar;
 };
-
-}
 
 #endif // SCREEN_H
